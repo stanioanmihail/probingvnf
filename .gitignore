@@ -1,1 +1,16 @@
 /sandbox/
+*~
+*.o
+*.a
+*.lib
+*.dll
+*.so
+*.gz
+*.tar
+*.Z
+*.tgz
+*.bz2
+*.tbz2
+*.zip
+*.pyc
+*.obj
