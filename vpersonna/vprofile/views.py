@@ -15,4 +15,10 @@ def index(request):
 
 def client_profile(request, client_id):
     client = Client.objects.get(id=client_id)
-    return HttpResponse("Profile page for client %s (id: %d)." %(client.client_name, client.client_id))
+    template = loader.get_template('profile/profile.html')
+    profile_dict = { 'a': 10, 'b': 20, 'c': 30, 'd': 15 }
+    context = RequestContext(request, {
+        'client': client,
+        'profile_dict': profile_dict,
+        })
+    return HttpResponse(template.render(context))
