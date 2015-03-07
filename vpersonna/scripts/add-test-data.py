@@ -23,11 +23,11 @@ def add_test_data():
     client.client_id = 12345
     client.client_name = 'Victor Papusa-Atomica'
     client.phone_number = '8989989'
-    email = 'victor@papusa.atomica.com'
-    card_id = '1899218919291'
-    address = 'Calea Prazului nr. 1, Zaibăreni, Dolj'
-    contract_id = '1/32.13.2015'
-    contract_type = 'de muritor'
+    client.email = 'victor@papusa.atomica.com'
+    client.card_id = '1899218919291'
+    client.address = 'Calea Prazului nr. 1, Zaibăreni, Dolj'
+    client.contract_id = '1/32.13.2015'
+    client.contract_type = 'de muritor'
     client.save()
 
     device = Device()
