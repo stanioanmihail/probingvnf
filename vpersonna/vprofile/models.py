@@ -18,8 +18,8 @@ class Client(models.Model):
 class Device(models.Model):
     client = models.ForeignKey(Client)
     device_id = models.IntegerField('Device ID', blank=False)
-    decive_type = models.CharField('Device Type', blank=False, max_length=40)
-    decive_name = models.CharField('Device Name', max_length=100)
+    device_type = models.CharField('Device Type', blank=False, max_length=40)
+    device_name = models.CharField('Device Name', max_length=100)
 
 
 class Remote(models.Model):
