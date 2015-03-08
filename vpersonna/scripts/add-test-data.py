@@ -21,25 +21,25 @@ sys.stdout = UTF8Writer(sys.stdout)
 def add_test_data():
     client = Client()
     client.client_id = 12345
-    client.client_name = 'Victor Papusa-Atomica'
-    client.phone_number = '8989989'
-    email = 'victor@papusa.atomica.com'
-    card_id = '1899218919291'
-    address = 'Calea Prazului nr. 1, Zaibăreni, Dolj'
-    contract_id = '1/32.13.2015'
-    contract_type = 'de muritor'
+    client.client_name = 'Alin Marinescu'
+    client.phone_number = '0744 444 444'
+    client.email = 'alin@marinescu.ro'
+    client.card_id = '1888218919291'
+    client.address = 'Apusul, București'
+    client.contract_id = '1/3.4.2013'
+    client.contract_type = 'Gold'
     client.save()
 
     device = Device()
     device.client = client
     device.device_id = 54321
-    device.device_type = 'tv'
+    device.device_type = 'TV'
     device.device_name = 'Alonda'
     device.save()
 
     remote = Remote()
-    remote.ip_address = '69.69.69.69'
-    remote.hostname = 'pr0n.4.victor.com'
+    remote.ip_address = '141.85.227.122'
+    remote.hostname = 'store.cs.pub.ro'
     remote.protocol = 'TCP'
     remote.app_protocol = 'HTTP'
     remote.save()
@@ -52,7 +52,7 @@ def add_test_data():
     session.num_packets = 7000
     session.dropped_packets = 500
     session.traffic_size = 75000
-    session.meta = 'Debbie does Victor'
+    session.meta = 'Zeitgeist Addendum'
     session.save()
 
 def read_data():
@@ -88,7 +88,7 @@ def remove_all_data():
 def main():
     add_test_data()
     read_data()
-    remove_all_data()
+    #remove_all_data()
 
 if __name__ == "__main__":
     sys.exit(main())
