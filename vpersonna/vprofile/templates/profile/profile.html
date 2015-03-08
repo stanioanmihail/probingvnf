@@ -21,11 +21,25 @@ function drawChart() {
     chart.draw(data, options);
 }
     </script>
+    <link rel="stylesheet" href="//code.jquery.com/ui/1.11.3/themes/smoothness/jquery-ui.css">
+    <script language="javascript" type="text/javascript" src="/static/js/jquery-1.11.2.min.js"></script>
+    <script language="javascript" type="text/javascript" src="/static/js/jquery-ui.min.js"></script>
+    <script language="javascript" type="text/javascript">
+        $(function() {
+            $( "#datepicker" ).datepicker();
+        });
+    </script>
 </head>
 <body>
     <p>
     Profile for client {{ client.client_name }}.
     </p>
     <div id="piechart" style="width: 900px; height: 500px;"></div>
+    <form method="post" role="form" class="form-horizontal" action="/profile/date.html">
+    <p>
+    Date: <input type="text" id="datepicker">
+    <button class="btn btn-primary" type="submit">Submit</button>
+    </p>
+    </form>
 </body>
 </html>
