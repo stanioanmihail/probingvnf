@@ -3,30 +3,43 @@
 </head>
 <body>
 {% if client_list %}
-<h2 class="sub-header">Clients</h2>
-<div class="table-responsive">
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>#</th>
-                <th>Name</th>
-                <th>Id</th>
-                <th>E-mail</th>
-                <th>Phone</th>
+<div class="panel panel-primary">
+    <div class="panel-heading">
+        <!-- <h2 class="panel-title">Clients</h2> -->
+ 	<div class="panel-title">
+    		<div class="input-group">
+      	            <input type="text" class="form-control" placeholder="Search for...">
+      		        <span class="input-group-btn">
+        	            <button class="btn btn-default" type="button">Go!</button>
+      		        </span>
+   		</div><!-- /input-group -->
+	</div><!-- /.col-lg-6 -->
+    </div>
+    <div class="panel-body">
+        <div class="table-responsive">
+             <table class="table table-striped">
+             <thead>
+                  <tr>
+                  <th>#</th>
+                  <th>Name</th>
+                  <th>Id</th>
+                  <th>Phone</th>
+		  <th>Action</th>
+                  </tr>
+             </thead>
+             <tbody>
+             {% for client in client_list %}
+             <tr>
+                 <td>{{ forloop.counter }}</td>
+                 <td><a href="/profile/{{ client.id}}">{{ client.client_name }}</a></td>
+                 <td>{{ client.id }}</td>
+                 <td>{{ client.phone_number }}</td>
+		 <td><button type="button" class="btn btn-default navbar-btn">Status</button></td>
             </tr>
-        </thead>
-        {% for client in client_list %}
-        <tbody>
-            <tr>
-                <td>{{ client.id }}</td>
-                <td><a href="/profile/{{ client.id}}">{{ client.client_name }}</a></td>
-                <td>ipsum</td>
-                <td>dolor</td>
-                <td>sit</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+            {% endfor %} 
+           </tbody>
+        </table>
+    </div>
 </div>
 {% else %}
 <p>No clients are available.</p>
