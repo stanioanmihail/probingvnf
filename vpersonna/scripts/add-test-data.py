@@ -88,7 +88,7 @@ def remove_all_data():
 def main():
     add_test_data()
     read_data()
-    #remove_all_data()
+#    remove_all_data()
 
 if __name__ == "__main__":
     sys.exit(main())
