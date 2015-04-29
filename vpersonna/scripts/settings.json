@@ -1,0 +1,59 @@
+{
+	"noise":5,
+	"noise_variation":5,
+	"noise_session_variation":600,
+	"noise_packets":1000,
+	"noise_packets_variation":50,
+	"noise_dropped_packets":100,
+	"noise_dropped_packets_variation":50,
+	"session_variation":1800,
+	"bogus_sites_number":10000,
+	"profiles":[
+		{
+			"daily": [
+				{"time":"18-22", "unique_remotes":[{"site":"www.9gag.com","ip":"100.0.0.1"}], "remotes":1, "remotes_variation":0, "packets":50000, "packets_variation":10000, "dropped_packets":5000, "dropped_packets_variation":2500},
+				{"time":"18-22", "unique_remotes":[], "remotes":20, "remotes_variation":10, "packets":5000, "packets_variation":4000, "dropped_packets":2500, "dropped_packets_variation":1500}
+			],
+			"weekly": [
+				{"days":"5-6", "time":"13-18", "unique_remotes":[], "remotes":30, "remotes_variation":10, "packets":5000, "packets_variation":4000, "dropped_packets":2500, "dropped_packets_variation":1500}
+			],
+			"monthly": [
+			],
+			"yearly": [
+			],
+			"name": "Client A",
+			"clients": 40
+		},
+		{
+			"daily": [
+				{"time":"20-22", "unique_remotes":[], "remotes":30, "remotes_variation":10, "packets":5000, "packets_variation":4000, "dropped_packets":2500, "dropped_packets_variation":1500}
+			],
+			"weekly": [
+				{"days":"0-1", "time":"20-22", "unique_remotes":[{"site":"www.got.com", "ip":"100.0.0.2"}], "remotes":1, "remotes_variation":0, "packets":50000, "packets_variation":10000, "dropped_packets":5000, "dropped_packets_variation":2500},
+				{"days":"0-1", "time":"20-22", "unique_remotes":[], "remotes":30, "remotes_variation":10, "packets":5000, "packets_variation":4000, "dropped_packets":2500, "dropped_packets_variation":1500}
+			],
+			"monthly": [
+			],
+			"yearly": [
+			],
+			"name": "Client B",
+			"clients": 100
+		},
+		{
+			"daily": [
+				{"time":"0-24", "unique_remotes":[], "remotes":30, "remotes_variation":10, "packets":5000, "packets_variation":4000, "dropped_packets":2500, "dropped_packets_variation":1500}
+			],
+			"weekly": [
+			],
+			"monthly": [
+			],
+			"yearly": [
+				{"days":"1-15", "time":"17-22", "unique_remotes":[{"site":"www.wimbledon.com", "ip":"100.0.0.3"}], "remotes":1, "remotes_variation":0, "packets":50000, "packets_variation":10000, "dropped_packets":5000, "dropped_packets_variation":2500},
+				{"days":"1-15", "time":"0-17", "unique_remotes":[], "remotes":30, "remotes_variation":10, "packets": 5000, "packets_variation":4000, "dropped_packets":2500, "dropped_packets_variation":1500},
+				{"days":"1-15", "time":"22-24", "unique_remotes":[], "remotes":30, "remotes_variation":10, "packets": 5000, "packets_variation":4000, "dropped_packets":2500, "dropped_packets_variation":1500}
+			],
+			"name": "Client C",
+			"clients": 500
+		}
+	]
+}

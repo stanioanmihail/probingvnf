@@ -31,9 +31,14 @@ function drawChart() {
     </script>
 </head>
 <body>
-    <p>
+<div class="panel panel-primary">
+    <div class="panel-heading">
+    <h3>
     Profile for client {{ client.client_name }}.
-    </p>
+    </h3>
+</div>
+</div>
+    <div class="panel-body">
     <div id="piechart" style="width: 900px; height: 500px;"></div>
     <form method="post" role="form" class="form-horizontal" action="/profile/{{ client.id }}/date/">
     <p>
@@ -42,5 +47,6 @@ function drawChart() {
     <button class="btn btn-primary" type="submit">Submit</button>
     </p>
     </form>
+    </div>
 </body>
 </html>
