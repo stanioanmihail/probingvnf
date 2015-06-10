@@ -3,5 +3,8 @@
 
 gcc pcap_test.c -lpcap -o pcaptest
 
+# tested on eth0
+sudo ./pcaptest 100
+
 # If your version of pcap is not compatible,
 # generate a symbolic link to the requested version
