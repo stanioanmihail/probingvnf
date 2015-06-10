@@ -1,0 +1,7 @@
+# This will be moved to C++
+# Compile pcap program
+
+gcc pcap_test.c -lpcap -o pcaptest
+
+# If your version of pcap is not compatible,
+# generate a symbolic link to the requested version
