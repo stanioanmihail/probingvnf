@@ -8,3 +8,8 @@ sudo ./pcaptest 100
 
 # If your version of pcap is not compatible,
 # generate a symbolic link to the requested version
+
+
+# Insert into database test
+gcc test_db.c -l sqlite3 -o sql
+
