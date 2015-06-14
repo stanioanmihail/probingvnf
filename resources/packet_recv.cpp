@@ -7,8 +7,8 @@
 
 using namespace std;
 
-enum transport_protocol {TCP, UDP};
-enum type_of_service {TORRENT, VIDEO, DEFAULT};
+enum transport_protocol {TCP, UDP, OTHER};
+enum type_of_service {HTTP, TORRENT, VIDEO, DEFAULT};
 
 class Session {
 	private:
@@ -20,14 +20,14 @@ class Session {
 		// Add timestamp - date
 	public:
 		Session() : packets(0) {}
-		void set_ip_src(struct in_addr * ip_src) {}
-		void set_ip_dst(struct in_addr * ip_dst) {}
+		void set_ip_src(struct in_addr ip_src) {}
+		void set_ip_dst(struct in_addr ip_dst) {}
 		void set_port_src(u_short port_src) {}
 		void set_port_dst(u_short port_dst) {}
 		void set_t_prot(transport_protocol prot) {}
 		void set_t_service(type_of_service t) {}
 		void set_packets(unsigned long p) {}
-		void inc_packets(){ this->packets++;}
+		void inc_packets() {this->packets++;}
 		void reset_packets() {this->packets = 0;}
 
 		~Session() {}
@@ -36,9 +36,20 @@ class Session {
 class PacketProcess {
 	public:
 		queue<struct pcap_pkthdr> packet_buffer; // Not sure if to use it yet
+		Session s;
 		PacketProcess() {}
 		~PacketProcess() {}
-		//-------------------------------------------------------------
+		int is_syn_activated(struct my_tcp *tcp) {
+			return (tcp->th_flags & 0x02);
+		}
+
+		int is_fin_activated(struct my_tcp *tcp) {
+			return (tcp->th_flags  & 0x01);
+		}
+
+		int is_session_start(struct my_tcp *tcp) {
+			return (tcp->th_flags & 0x10); /* SYN + ACK */
+		}
 		void process_packet (u_char *args,const struct pcap_pkthdr* pkthdr,
 				     const u_char* packet)
 		{
@@ -67,7 +78,6 @@ class PacketProcess {
 		    eptr = (struct ether_header *) packet;
 		    return ntohs(eptr->ether_type);
 		}
-		//------------------------------------------------------------------
 		void handle_tcp (u_char *args, const struct pcap_pkthdr* pkthdr,
 					const u_char* packet)
 		{
@@ -90,10 +100,22 @@ class PacketProcess {
 			printf("truncated tcp/udp/other %d",length);
 			return ;
 		    }
-		    if ( ntohs(tcp->th_dport) == 443 ) {
-				printf("PORT SRC: %d\n and PORT DTS: %d\n",  ntohs(tcp->th_sport),  ntohs(tcp->th_dport));
-				// TODO get_domain_name(args, pkthdr, packet);
-		    }
+		    s.set_port_src(ntohs(tcp->th_sport));
+		    s.set_port_dst(ntohs(tcp->th_dport));
+
+		    if (ntohs(tcp->th_dport) == 443 || ntohs(tcp->th_dport) == 80) {
+
+			s.set_t_service(HTTP); 
+			    //printf("PORT SRC: %d\n and PORT DTS: %d\n",  ntohs(tcp->th_sport),  ntohs(tcp->th_dport));
+			    // TODO get_domain_name(args, pkthdr, packet);
+		    } else if (ntohs(tcp->th_dport) == 9091 || ntohs(tcp->th_dport) == 30301 ||
+				(ntohs(tcp->th_dport) > 6881 && ntohs(tcp->th_dport) < 6887) )
+		    {
+			s.set_t_service(TORRENT);
+		    } else {
+			    s.set_t_service(DEFAULT);
+		    } // TODO add if (VIDEO)
+
 		}
 		//------------------------------------------------------------------
 		u_char* handle_IP (u_char *args,const struct pcap_pkthdr* pkthdr,
@@ -138,8 +160,20 @@ class PacketProcess {
 		    if(length < len)
 			printf("\ntruncated IP - %d bytes missing\n",len - length);
 
-		    /* Check to see if we have the first fragment */
 		    off = ntohs(ip->ip_off);
+
+		    s.set_ip_src(ip->ip_src);
+		    s.set_ip_dst(ip->ip_dst);
+
+		    if (ip->ip_p == 0x06) {
+			s.set_t_prot(TCP);
+		    } else if (ip->ip_p == 0x11) {
+			s.set_t_prot(UDP);
+		    } else {
+			s.set_t_prot(OTHER);
+		    }
+
+		     /* Check to see if we have the first fragment */
 		    if((off & 0x1fff) == 0 )/* aka no 1's in first 13 bits */
 		    {/* print SOURCE DESTINATION hlen version len offset */
 			fprintf(stdout,"IP: ");
