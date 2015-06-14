@@ -1,20 +1,10 @@
-#include <pcap.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netinet/if_ether.h> 
-#include <net/ethernet.h>
-#include <linux/tcp.h>
-#include <netinet/ether.h> 
-#include <netinet/ip.h> 
-#include <string.h>
-#include <vector>
-#include <multimap>
+#include <unordered_map>
+#include <queue>
+
+#include "packet.h"
 
 #define LOOP_PACKETS		100
+
 using namespace std;
 
 enum transport_protocol {TCP, UDP};
@@ -30,32 +20,35 @@ class Session {
 		// Add timestamp - date
 	public:
 		Session() : packets(0) {}
+		void set_ip_src(struct in_addr * ip_src) {}
+		void set_ip_dst(struct in_addr * ip_dst) {}
+		void set_port_src(u_short port_src) {}
+		void set_port_dst(u_short port_dst) {}
+		void set_t_prot(transport_protocol prot) {}
+		void set_t_service(type_of_service t) {}
+		void set_packets(unsigned long p) {}
+		void inc_packets(){ this->packets++;}
+		void reset_packets() {this->packets = 0;}
+
 		~Session() {}
 };
 
-class Packet_dispatcher {
+class PacketProcess {
 	public:
-		char *dev; 
-		char errbuf[PCAP_ERRBUF_SIZE];
-		pcap_t* descr;
-		Packet_dispatcher(){
-			this->dev = NULL;
-			this->descr = NULL;
-		}
-		//---------------------------------------------------------------
-		void open_dev() {
-			this->dev = pcap_lookupdev(errbuf);
-			if(dev == NULL){
-				printf("%s\n",errbuf); exit(1);
+		queue<struct pcap_pkthdr> packet_buffer; // Not sure if to use it yet
+		PacketProcess() {}
+		~PacketProcess() {}
+		//-------------------------------------------------------------
+		void process_packet (u_char *args,const struct pcap_pkthdr* pkthdr,
+				     const u_char* packet)
+		{
+			u_int16_t type = handle_ethernet(args,pkthdr,packet);
+			if(type == ETHERTYPE_IP)
+			{/* handle IP packet */
+				handle_IP(args,pkthdr,packet);
 			}
-			/* open device for reading */
-			descr = pcap_open_live(dev,BUFSIZ,0,-1,errbuf);
-			if(descr == NULL){
-				printf("pcap_open_live(): %s\n",errbuf);
-				exit(1);
-			}
+			/* DISCARD */
 		}
-		//----------------------------------------------------------------
 		u_int16_t handle_ethernet (u_char *args,const struct pcap_pkthdr* pkthdr,
 						const u_char* packet)
 		{
@@ -99,7 +92,7 @@ class Packet_dispatcher {
 		    }
 		    if ( ntohs(tcp->th_dport) == 443 ) {
 				printf("PORT SRC: %d\n and PORT DTS: %d\n",  ntohs(tcp->th_sport),  ntohs(tcp->th_dport));
-				get_domain_name(args, pkthdr, packet);
+				// TODO get_domain_name(args, pkthdr, packet);
 		    }
 		}
 		//------------------------------------------------------------------
@@ -159,24 +152,37 @@ class Packet_dispatcher {
 		    handle_tcp(args, pkthdr, packet);
 		    return NULL;
 		}
-		//----------------------------------------------------
-		/* looking at ethernet headers */
-		void my_callback(u_char *args,const struct pcap_pkthdr* pkthdr,
-					const u_char* packet)
-		{
-		    u_int16_t type = handle_ethernet(args,pkthdr,packet);
+};
 
-		    if(type == ETHERTYPE_IP)
-		    {/* handle IP packet */
-			handle_IP(args,pkthdr,packet);
-		    }else if(type == ETHERTYPE_ARP)
-		    {
-			/* DISCARD */
-		    }
-		    else if(type == ETHERTYPE_REVARP)
-		    {
-			/* DISCARD */
-		    }
+class DevProbing {
+	public:
+		char *dev;
+		char errbuf[PCAP_ERRBUF_SIZE];
+		pcap_t* descr;
+		DevProbing(){
+			this->dev = NULL;
+			this->descr = NULL;
+		}
+		~DevProbing() {}
+		// TODO - Add support for more probing interfaces: wlan, eth0
+		//-----------------------------------------------------------
+		void open_dev() {
+			this->dev = pcap_lookupdev(errbuf);
+			if(dev == NULL){
+				printf("%s\n",errbuf); exit(1);
+			}
+			/* open device for reading */
+			descr = pcap_open_live(dev,BUFSIZ,0,-1,errbuf);
+			if(descr == NULL){
+				printf("pcap_open_live(): %s\n",errbuf);
+				exit(1);
+			}
+		}
+		static void my_callback(u_char *args,const struct pcap_pkthdr* pkthdr,
+				 const u_char* packet)
+		{
+			PacketProcess process_pack;
+			process_pack.process_packet(args, pkthdr, packet);
 		}
 
 		//----------------------------------------------------
@@ -200,3 +206,6 @@ class SessionAggregator {
 		void classify_session(Session s) {}
 		
 };
+
+int main() {return 0;}
+
