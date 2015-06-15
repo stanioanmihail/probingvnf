@@ -43,9 +43,57 @@ class Session {
 		~Session() {}
 };
 
+class SessionAggregator {
+	protected:
+		unordered_multimap<u_short, Session> s_map; // map over source port
+	public:
+		void add_session(Session s) {
+			pair<u_short, Session> s_pair(s.get_port_src(), s);
+			s_map.insert(s_pair);
+		}
+		/* Remove the given session from the aggregator
+		 * Useful when number of packets get written to database and
+		 * multimap must be cleared.
+		 */
+		Session delete_session(Session s) {
+			unordered_multimap<u_short, Session>::iterator it = s_map.find(s.get_port_src());
+			for (; it != s_map.end(); it++) {
+				if (it->second == s) {
+					s_map.erase(it);
+				}
+			}
+		}
+		/**
+		 * Receive info about session, classify it.
+		 * If existent, increase packet no. with existing one.
+		 * # test that find
+		 */
+		void classify_session(Session s) {
+			unordered_multimap<u_short, Session>::iterator it = s_map.find(s.get_port_src());
+			if (it == s_map.end()) {
+				add_session(s);
+				return;
+			}
+			for (; it != s_map.end(); it++) {
+				if (it->second == s) {
+					it->second.add_packet_no(s.get_packets());
+				}
+			}
+		}
+		/**
+		 * Reset multimap when info written to the database
+		 * Erase all elements;
+		 * */
+		void reset_multimap() {
+			s_map.clear();
+		}
+};
 
-
-
+/**
+ * Processes a packet by building a session out of it.
+ * All happens sequentially.
+ * # ugly part, mixing C with C++
+ * */
 class PacketProcess {
 	private:
 		Session s;
@@ -66,15 +114,19 @@ class PacketProcess {
 		int is_session_start(struct my_tcp *tcp) {
 			return (tcp->th_flags & 0x10); /* SYN + ACK */
 		}
-		void process_packet (u_char *args,const struct pcap_pkthdr* pkthdr,
+		int process_packet (u_char *args,const struct pcap_pkthdr* pkthdr,
 				     const u_char* packet)
 		{
 			u_int16_t type = handle_ethernet(args,pkthdr,packet);
-			if(type == ETHERTYPE_IP)
-			{/* handle IP packet */
-				handle_IP(args,pkthdr,packet);
+
+			if(type == ETHERTYPE_IP) {/* handle IP packet */
+				if (!handle_IP(args,pkthdr,packet)) {
+					s.inc_packets();
+					return 0;  /* success */
+				}
 			}
 			/* DISCARD */
+			return -1;
 		}
 		u_int16_t handle_ethernet (u_char *args,const struct pcap_pkthdr* pkthdr,
 						const u_char* packet)
@@ -94,7 +146,7 @@ class PacketProcess {
 		    eptr = (struct ether_header *) packet;
 		    return ntohs(eptr->ether_type);
 		}
-		void handle_tcp (u_char *args, const struct pcap_pkthdr* pkthdr,
+		int handle_tcp (u_char *args, const struct pcap_pkthdr* pkthdr,
 					const u_char* packet)
 		{
 		    const struct my_tcp *tcp;
@@ -111,10 +163,9 @@ class PacketProcess {
 
 		    printf("IP HDR LEN: %lu\n", sizeof(struct iphdr));
 		    /* check to see we have a packet of valid length */
-		    if (length < sizeof(struct my_tcp))
-		    {
+		    if (length < sizeof(struct my_tcp)) {
 			printf("truncated tcp/udp/other %d",length);
-			return ;
+			return -1;
 		    }
 		    s.set_port_src(ntohs(tcp->th_sport));
 		    s.set_port_dst(ntohs(tcp->th_dport));
@@ -131,51 +182,43 @@ class PacketProcess {
 		    } else {
 			    s.set_t_service(DEFAULT);
 		    } // TODO add if (VIDEO)
-
+		    return 0;
 		}
 		//------------------------------------------------------------------
-		u_char* handle_IP (u_char *args,const struct pcap_pkthdr* pkthdr,
+		int handle_IP (u_char *args,const struct pcap_pkthdr* pkthdr,
 					const u_char* packet)
 		{
 		    const struct my_ip* ip;
 		    u_int length = pkthdr->len;
 		    u_int hlen,off,version;
-		    int i;
-
-		    int len;
+		    int i, len;
 
 		    /* jump pass the ethernet header */
 		    ip = (struct my_ip*)(packet + sizeof(struct ether_header));
 		    length -= sizeof(struct ether_header); 
 
 		    /* check to see we have a packet of valid length */
-		    if (length < sizeof(struct my_ip))
-		    {
+		    if (length < sizeof(struct my_ip)) {
 			printf("truncated ip %d",length);
-			return NULL;
+			return -1;
 		    }
-
 		    len     = ntohs(ip->ip_len);
 		    hlen    = IP_HL(ip); /* header length */
 		    version = IP_V(ip);/* ip version */
 
 		    /* check version */
-		    if(version != 4)
-		    {
+		    if(version != 4) {
 		      fprintf(stdout,"Unknown version %d\n",version);
-		      return NULL;
+		      return -1;
 		    }
-
 		    /* check header length */
-		    if(hlen < 5 )
-		    {
+		    if(hlen < 5 ) {
 			fprintf(stdout,"bad-hlen %d \n",hlen);
 		    }
-
 		    /* see if we have as much packet as we should */
-		    if(length < len)
+		    if(length < len) {
 			printf("\ntruncated IP - %d bytes missing\n",len - length);
-
+		    }
 		    off = ntohs(ip->ip_off);
 
 		    s.set_ip_src(ip->ip_src);
@@ -200,47 +243,11 @@ class PacketProcess {
 				hlen,version,len,off);
 		    }
 		    handle_tcp(args, pkthdr, packet);
-		    return NULL;
+		    return 0; /* success */
 		}
 };
 
-class SessionAggregator {
-	protected:
-		unordered_multimap<u_short, Session> s_map; // map over source port
-	public:
-		void add_session(Session s) {
-			pair<u_short, Session> s_pair(s.get_port_src(), s);
-			s_map.insert(s_pair);
-		}
-		/* Remove the given session from the aggregator
-		 * Useful when number of packets get written to database and
-		 * multimap must be cleared.
-		 */
-		Session delete_session(Session s) {
-			unordered_multimap<u_short, Session>::iterator it = s_map.find(s.get_port_src());
-			for (; it != s_map.end(); it++) {
-				if (it->second == s) {
-					s_map.erase(it);
-				}
-			}
-		}
-		/**
-		 * Receive info about session, classify it.
-		 * If existent, increase packet no. with existing one.
-		 */
-		void classify_session(Session s) {
-			unordered_multimap<u_short, Session>::iterator it = s_map.find(s.get_port_src());
-			if (it == s_map.end()) {
-				add_session(s);
-				return;
-			}
-			for (; it != s_map.end(); it++) {
-				if (it->second == s) {
-					it->second.add_packet_no(s.get_packets());
-				}
-			}
-		}
-};
+
 
 /* Acts as a manager for the events happening on one interface;
  * Takes packets from the if and send them to his SessionAggregator;
@@ -252,7 +259,7 @@ class DevProbing {
 		char *dev;
 		char errbuf[PCAP_ERRBUF_SIZE];
 		pcap_t* descr;
-		SessionAggregator s_aggr;
+		static SessionAggregator s_aggr;
 		//----------------------------------------------------
 		DevProbing() : dev(0), descr(0) {}
 		~DevProbing() {}
@@ -271,14 +278,19 @@ class DevProbing {
 			}
 		}
 		/*
-		 * Callback function to be used for the 
+		 * Callback function to be used for the packet processing on event
+		 * Is it possible that this function will be called twice
+		 * in the same time, resulting in a race condition?!
+		 * Then, access to multimap should be sync;
 		 * */
 		static void my_callback(u_char *args,const struct pcap_pkthdr* pkthdr, 
 				const u_char* packet)
 		{
 			// Better use a Visitor.visit();
 			PacketProcess process_pack;
-			process_pack.process_packet(args, pkthdr, packet);
+			if (!process_pack.process_packet(args, pkthdr, packet)) { /* only on success */
+				s_aggr.classify_session(process_pack.get_session());
+			}
 		}
 		/* *
 		 * Call pcap_loop(..) and pass in the callback function.
@@ -289,6 +301,10 @@ class DevProbing {
 		}
 };
 
+/*
+ * Should definitely be done on another thread!
+ *
+ * */
 class DBConnector {
 	public:
 		// TODO - add sqlite3 connection info
