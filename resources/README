@@ -1,5 +1,27 @@
-# This will be moved to C++
+#------------------------------------------
+# SessionAggregator and DataBaseConnector
+# -----------------------------------------
+
+The model used for retrieving data is a session.
+A session is represented by:
+
+IP src | IP dst | Port src | Port Dst | Transport Protocol |Type of Service | 
+No. packets | Timestamp |  Duration (?)
+
+
+* Type of service - classified corresponding to well-known ports: torrents/ default/ video
+* For HTTP check hostname field from packets (not yet implemented)
+* Timestamp - local time of first packet with SYN
+    - for TCP a session starts from SYN + no ACK, ends with FIN
+    - for UDP - check upper protocol, e.g. for FTP check Transfer Complete
+* Discard irrelevant traffic : ARP, DHCP, protocols in known multicast groups
+
 # Compile pcap program
+make
+
+#------------------------------------------
+# Local Test Files Information
+# -----------------------------------------
 
 gcc pcap_test.c -lpcap -o pcaptest
 
