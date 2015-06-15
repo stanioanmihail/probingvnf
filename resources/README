@@ -16,6 +16,10 @@ No. packets | Timestamp |  Duration (?)
     - for UDP - check upper protocol, e.g. for FTP check Transfer Complete
 * Discard irrelevant traffic : ARP, DHCP, protocols in known multicast groups
 
+
+DataBaseConnector should be started on a different thread and spill data to sqlite3.
+But when? 
+
 # Compile pcap program
 make
 
