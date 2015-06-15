@@ -35,3 +35,12 @@ sudo ./pcaptest 100
 # Insert into database test
 gcc test_db.c -l sqlite3 -o sql
 
+#---------------------------------------
+# TODO
+# -------------------------------------
+
+1. Don't add multicast packets to SessionAggregator
+2. Check if callback is called multiple times simmultanously and sync
+3. Check video traffic, find a way to recognize it
+
+
