@@ -20,6 +20,14 @@ class Session {
 		// Add timestamp - date
 	public:
 		Session() : packets(0) {}
+		bool operator ==(const Session &other) { 
+			return this->port_src == other.port_src &&
+				this->ip_src.s_addr == other.ip_src.s_addr;
+		}
+		u_short get_port_dst() { return this->port_dst;}
+		u_short get_port_src() { return this->port_src;}
+		struct in_addr get_ip_src() { return this->ip_src;}
+		struct in_addr get_ip_dst() { return this->ip_dst;}
 		void set_ip_src(struct in_addr ip_src) {}
 		void set_ip_dst(struct in_addr ip_dst) {}
 		void set_port_src(u_short port_src) {}
@@ -32,6 +40,9 @@ class Session {
 
 		~Session() {}
 };
+
+
+
 
 class PacketProcess {
 	public:
@@ -237,7 +248,21 @@ class SessionAggregator {
 	private:
 		unordered_multimap<u_short, Session> s_map; // map over source port
 	public:
-		void classify_session(Session s) {}
+		void add_session(Session s) {
+			pair<u_short, Session> s_pair(s.get_port_src(), s);
+			s_map.insert(s_pair); // TODO - init list initialization
+		}
+		Session delete_session(Session s) {
+			unordered_multimap<u_short, Session>::iterator it = s_map.find(s.get_port_src());
+			for (; it != s_map.end(); it++) {
+				if ((it->second) == s) {
+					s_map.erase(it);
+				}
+			}
+		}
+		void classify_session(Session s) {
+			
+		}
 		
 };
 
