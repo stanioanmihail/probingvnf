@@ -24,18 +24,20 @@ class Session {
 			return this->port_src == other.port_src &&
 				this->ip_src.s_addr == other.ip_src.s_addr;
 		}
-		u_short get_port_dst() { return this->port_dst; }
-		u_short get_port_src() { return this->port_src; }
-		struct in_addr get_ip_src() { return this->ip_src; }
-		struct in_addr get_ip_dst() { return this->ip_dst; }
-		void set_ip_src(struct in_addr ip_src) { this->ip_src.s_addr = ip_src.s_addr; }
-		void set_ip_dst(struct in_addr ip_dst) { this->ip_dst.s_addr = ip_dst.s_addr; }
-		void set_port_src(u_short port_src) { this->port_src = port_src; }
-		void set_port_dst(u_short port_dst) { this->port_dst = port_dst; }
-		void set_t_prot(transport_protocol prot) { this->t_prot = prot; }
+		u_short get_port_dst() { return this->port_dst;}
+		u_short get_port_src() { return this->port_src;}
+		struct in_addr get_ip_src() { return this->ip_src;}
+		struct in_addr get_ip_dst() { return this->ip_dst;}
+		unsigned long get_packets() { return this->packets;}
+		void set_ip_src(struct in_addr ip_src) { this->ip_src.s_addr = ip_src.s_addr;}
+		void set_ip_dst(struct in_addr ip_dst) { this->ip_dst.s_addr = ip_dst.s_addr;}
+		void set_port_src(u_short port_src) { this->port_src = port_src;}
+		void set_port_dst(u_short port_dst) { this->port_dst = port_dst;}
+		void set_t_prot(transport_protocol prot) { this->t_prot = prot;}
 		void set_t_service(type_of_service t) { this->t_service = t;}
 		void set_packets(unsigned long p) { this->packets = p;}
 		void inc_packets() {this->packets++;}
+		void add_packet_no(unsigned long p) {this->packets += p;}
 		void reset_packets() {this->packets = 0;}
 
 		~Session() {}
@@ -45,11 +47,14 @@ class Session {
 
 
 class PacketProcess {
+	private:
+		Session s;
 	public:
 		queue<struct pcap_pkthdr> packet_buffer; // Not sure if to use it yet
-		Session s;
 		PacketProcess() {}
 		~PacketProcess() {}
+		Session get_session() {return this->s;}
+		void set_session(Session s) {this->s = s;}
 		int is_syn_activated(struct my_tcp *tcp) {
 			return (tcp->th_flags & 0x02);
 		}
@@ -199,56 +204,73 @@ class PacketProcess {
 		}
 };
 
+/* Acts as a manager for the events happening on one interface;
+ * Takes packets from the if and send them to his SessionAggregator;
+ * Then, it should talk to the DB through a DBConnector object;
+ * */
+
 class DevProbing {
 	public:
 		char *dev;
 		char errbuf[PCAP_ERRBUF_SIZE];
 		pcap_t* descr;
+		SessionAggregator s_aggr;
+		//----------------------------------------------------
 		DevProbing() : dev(0), descr(0) {}
 		~DevProbing() {}
-		// TODO - Add support for more probing interfaces: wlan, eth0
-		//-----------------------------------------------------------
 		void open_dev() {
+			/* lookup interface */
 			this->dev = pcap_lookupdev(errbuf);
 			if(dev == NULL){
 				printf("%s\n",errbuf); exit(1);
+				return;
 			}
 			/* open device for reading */
 			descr = pcap_open_live(dev,BUFSIZ,0,-1,errbuf);
 			if(descr == NULL){
 				printf("pcap_open_live(): %s\n",errbuf);
-				exit(1);
+				return;
 			}
 		}
-		static void my_callback(u_char *args,const struct pcap_pkthdr* pkthdr,
-				 const u_char* packet)
+		/*
+		 * Callback function to be used for the 
+		 * */
+		static void my_callback(u_char *args,const struct pcap_pkthdr* pkthdr, 
+				const u_char* packet)
 		{
+			// Better use a Visitor.visit();
 			PacketProcess process_pack;
 			process_pack.process_packet(args, pkthdr, packet);
 		}
-
-		//----------------------------------------------------
+		/* *
+		 * Call pcap_loop(..) and pass in the callback function.
+		 * Loop packets on the selected interface.
+		 */
 		void dispatch_packet() {
-			/* call pcap_loop(..) and pass in our callback function */
 			pcap_loop(descr, LOOP_PACKETS, my_callback,NULL);
 		}
 };
 
 class DBConnector {
 	public:
+		// TODO - add sqlite3 connection info
 		DBConnector();
 		~DBConnector();
 };
 
 
 class SessionAggregator {
-	private:
+	protected:
 		unordered_multimap<u_short, Session> s_map; // map over source port
 	public:
 		void add_session(Session s) {
 			pair<u_short, Session> s_pair(s.get_port_src(), s);
-			s_map.insert(s_pair); // TODO - init list initialization
+			s_map.insert(s_pair);
 		}
+		/* Remove the given session from the aggregator
+		 * Useful when number of packets get written to database and
+		 * multimap must be cleared.
+		 */
 		Session delete_session(Session s) {
 			unordered_multimap<u_short, Session>::iterator it = s_map.find(s.get_port_src());
 			for (; it != s_map.end(); it++) {
@@ -257,10 +279,22 @@ class SessionAggregator {
 				}
 			}
 		}
+		/**
+		 * Receive info about session, classify it.
+		 * If existent, increase packet no. with existing one.
+		 */
 		void classify_session(Session s) {
-			
+			unordered_multimap<u_short, Session>::iterator it = s_map.find(s.get_port_src());
+			if (it == s_map.end()) {
+				add_session(s);
+				return;
+			}
+			for (; it != s_map.end(); it++) {
+				if (it->second == s) {
+					it->second.add_packet_no(s.get_packets());
+				}
+			}
 		}
-		
 };
 
 int main() {return 0;}
