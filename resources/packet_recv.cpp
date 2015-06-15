@@ -24,17 +24,17 @@ class Session {
 			return this->port_src == other.port_src &&
 				this->ip_src.s_addr == other.ip_src.s_addr;
 		}
-		u_short get_port_dst() { return this->port_dst;}
-		u_short get_port_src() { return this->port_src;}
-		struct in_addr get_ip_src() { return this->ip_src;}
-		struct in_addr get_ip_dst() { return this->ip_dst;}
-		void set_ip_src(struct in_addr ip_src) {}
-		void set_ip_dst(struct in_addr ip_dst) {}
-		void set_port_src(u_short port_src) {}
-		void set_port_dst(u_short port_dst) {}
-		void set_t_prot(transport_protocol prot) {}
-		void set_t_service(type_of_service t) {}
-		void set_packets(unsigned long p) {}
+		u_short get_port_dst() { return this->port_dst; }
+		u_short get_port_src() { return this->port_src; }
+		struct in_addr get_ip_src() { return this->ip_src; }
+		struct in_addr get_ip_dst() { return this->ip_dst; }
+		void set_ip_src(struct in_addr ip_src) { this->ip_src.s_addr = ip_src.s_addr; }
+		void set_ip_dst(struct in_addr ip_dst) { this->ip_dst.s_addr = ip_dst.s_addr; }
+		void set_port_src(u_short port_src) { this->port_src = port_src; }
+		void set_port_dst(u_short port_dst) { this->port_dst = port_dst; }
+		void set_t_prot(transport_protocol prot) { this->t_prot = prot; }
+		void set_t_service(type_of_service t) { this->t_service = t;}
+		void set_packets(unsigned long p) { this->packets = p;}
 		void inc_packets() {this->packets++;}
 		void reset_packets() {this->packets = 0;}
 
@@ -204,10 +204,7 @@ class DevProbing {
 		char *dev;
 		char errbuf[PCAP_ERRBUF_SIZE];
 		pcap_t* descr;
-		DevProbing(){
-			this->dev = NULL;
-			this->descr = NULL;
-		}
+		DevProbing() : dev(0), descr(0) {}
 		~DevProbing() {}
 		// TODO - Add support for more probing interfaces: wlan, eth0
 		//-----------------------------------------------------------
@@ -255,7 +252,7 @@ class SessionAggregator {
 		Session delete_session(Session s) {
 			unordered_multimap<u_short, Session>::iterator it = s_map.find(s.get_port_src());
 			for (; it != s_map.end(); it++) {
-				if ((it->second) == s) {
+				if (it->second == s) {
 					s_map.erase(it);
 				}
 			}
