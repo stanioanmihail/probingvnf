@@ -9,7 +9,7 @@ IP src | IP dst | Port src | Port Dst | Transport Protocol |Type of Service |
 No. packets | Timestamp |  Duration (?)
 
 
-* Type of service - classified corresponding to well-known ports: torrents/ default/ video
+* Type of service - classified corresponding to well-known ports: HTTP/torrents/ default/video
 * For HTTP check hostname field from packets (not yet implemented)
 * Timestamp - local time of first packet with SYN
     - for TCP a session starts from SYN + no ACK, ends with FIN
@@ -42,5 +42,5 @@ gcc test_db.c -l sqlite3 -o sql
 1. Don't add multicast packets to SessionAggregator
 2. Check if callback is called multiple times simmultanously and sync
 3. Check video traffic, find a way to recognize it
-
+4. Add timestamp + duration to Session!
 
