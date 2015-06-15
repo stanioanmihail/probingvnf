@@ -204,6 +204,44 @@ class PacketProcess {
 		}
 };
 
+class SessionAggregator {
+	protected:
+		unordered_multimap<u_short, Session> s_map; // map over source port
+	public:
+		void add_session(Session s) {
+			pair<u_short, Session> s_pair(s.get_port_src(), s);
+			s_map.insert(s_pair);
+		}
+		/* Remove the given session from the aggregator
+		 * Useful when number of packets get written to database and
+		 * multimap must be cleared.
+		 */
+		Session delete_session(Session s) {
+			unordered_multimap<u_short, Session>::iterator it = s_map.find(s.get_port_src());
+			for (; it != s_map.end(); it++) {
+				if (it->second == s) {
+					s_map.erase(it);
+				}
+			}
+		}
+		/**
+		 * Receive info about session, classify it.
+		 * If existent, increase packet no. with existing one.
+		 */
+		void classify_session(Session s) {
+			unordered_multimap<u_short, Session>::iterator it = s_map.find(s.get_port_src());
+			if (it == s_map.end()) {
+				add_session(s);
+				return;
+			}
+			for (; it != s_map.end(); it++) {
+				if (it->second == s) {
+					it->second.add_packet_no(s.get_packets());
+				}
+			}
+		}
+};
+
 /* Acts as a manager for the events happening on one interface;
  * Takes packets from the if and send them to his SessionAggregator;
  * Then, it should talk to the DB through a DBConnector object;
@@ -258,44 +296,6 @@ class DBConnector {
 		~DBConnector();
 };
 
-
-class SessionAggregator {
-	protected:
-		unordered_multimap<u_short, Session> s_map; // map over source port
-	public:
-		void add_session(Session s) {
-			pair<u_short, Session> s_pair(s.get_port_src(), s);
-			s_map.insert(s_pair);
-		}
-		/* Remove the given session from the aggregator
-		 * Useful when number of packets get written to database and
-		 * multimap must be cleared.
-		 */
-		Session delete_session(Session s) {
-			unordered_multimap<u_short, Session>::iterator it = s_map.find(s.get_port_src());
-			for (; it != s_map.end(); it++) {
-				if (it->second == s) {
-					s_map.erase(it);
-				}
-			}
-		}
-		/**
-		 * Receive info about session, classify it.
-		 * If existent, increase packet no. with existing one.
-		 */
-		void classify_session(Session s) {
-			unordered_multimap<u_short, Session>::iterator it = s_map.find(s.get_port_src());
-			if (it == s_map.end()) {
-				add_session(s);
-				return;
-			}
-			for (; it != s_map.end(); it++) {
-				if (it->second == s) {
-					it->second.add_packet_no(s.get_packets());
-				}
-			}
-		}
-};
 
 int main() {return 0;}
 
