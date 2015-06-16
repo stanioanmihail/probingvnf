@@ -21,8 +21,13 @@ class Session {
 	public:
 		Session() : packets(0) {}
 		bool operator ==(const Session &other) { 
-			return this->port_src == other.port_src &&
-				this->ip_src.s_addr == other.ip_src.s_addr;
+			/* packet is a request */
+			if (this->port_src == other.port_src && this->ip_src.s_addr == other.ip_src.s_addr)
+				return true;
+			/* packet is a reply */
+			if (this->port_src == other.port_dst && this->ip_src.s_addr == other.ip_dst.s_addr)
+				return true;
+			return false;
 		}
 		u_short get_port_dst() { return this->port_dst;}
 		u_short get_port_src() { return this->port_src;}
