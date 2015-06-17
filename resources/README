@@ -6,7 +6,7 @@ The model used for retrieving data is a session.
 A session is represented by:
 
 IP src | IP dst | Port src | Port Dst | Transport Protocol |Type of Service | 
-No. packets | Timestamp |  Duration (?)
+Packets | Bytes | Start Timestamp |  End Timestamp 
 
 
 * Type of service - classified corresponding to well-known ports: HTTP/torrents/ default/video
@@ -17,8 +17,8 @@ No. packets | Timestamp |  Duration (?)
 * Discard irrelevant traffic : ARP, DHCP, protocols in known multicast groups
 
 
-DataBaseConnector should be started on a different thread and spill data to sqlite3.
-But when? 
+DataBaseConnector should be started on a different thread and spill data to sqlite3 
+when a timer is elapsed (in seconds) or when a number of intercepted bytes is reached.
 
 # Compile pcap program
 make

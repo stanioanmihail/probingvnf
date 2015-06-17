@@ -26,6 +26,7 @@ class Session {
 		unsigned long bytes;
 		time_t start_timestamp;
 		time_t end_timestamp;
+		/* local, don't get to the database */
 		bool fin_activated, syn_activated;
 	public:
 		Session() : bytes(0), packets(0), start_timestamp(time(0)) {}
@@ -73,7 +74,11 @@ class Session {
 
 class SessionAggregator {
 	public:
+		static unsigned long total_bytes;
 		unordered_multimap<u_short, Session> s_map; // map over source port
+
+		SessionAggregator() : total_bytes(0) {}
+		~SessionAggregator() {}
 		void add_session(Session s) {
 			pair<u_short, Session> s_pair(s.get_port_src(), s);
 			s_map.insert(s_pair);
