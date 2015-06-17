@@ -48,6 +48,8 @@ class Session {
 		u_short get_port_dst() { return this->port_dst;}
 		u_short get_port_src() { return this->port_src;}
 		struct in_addr get_ip_src() { return this->ip_src;}
+		char * get_string_src_ip() { return inet_ntoa(this->ip_src);}
+		char * get_string_dst_ip() { return inet_ntoa(this->ip_dst);}
 		struct in_addr get_ip_dst() { return this->ip_dst;}
 		unsigned long get_packets() { return this->packets;}
 		unsigned long get_bytes() {return this->bytes;}
@@ -332,6 +334,7 @@ class DevProbing {
 class DBConnector {
 	public:
 		string database_name;
+		sqlite3 *db;
 		DBConnector() : database_name("database") {}
 		~DBConnector() {}
 		static int callback(void *data, int argc, char **argv, char **azColName) {
@@ -342,17 +345,10 @@ class DBConnector {
 			return 0;
 		}
 		void open_database() {
-			char *sql_select, *sql_insert;
-			char *zErrMsg = 0;
-			const char *data = "Callback fct called\n";
-			sqlite3 *db;
-			int rc;
-
-			rc = sqlite3_open("database", &db);
-			if (rc) {
+			if(sqlite3_open("database", &db)) {
 				cout << "Cannot open database\n";
 			}
-
+			/*
 			sql_select = "SELECT * from sessions";
 
 			
@@ -361,7 +357,7 @@ class DBConnector {
 				      VALUES('a.b.c.d', '8.8.8.8', 23213, 80, 'TCP');";
 			if (db == NULL) {
 				cout << "DB IS NULL\n";
-			}
+			}	
 			rc = sqlite3_exec(db, sql_select, callback, (void *) data, &zErrMsg);
 			//rc = sqlite3_exec(db, sql_insert, callback, (void *) data, &zErrMsg);
 
@@ -369,7 +365,51 @@ class DBConnector {
 				cout << "Cannot execute query " << rc << " " << zErrMsg;
 			}
 			sqlite3_close(db);
+			*/
 		}
+		void close_database() {
+			sqlite3_close(db);
+		}
+		string create_insert(Session s, char *table) {
+			/* hardcoded database for now */ 
+			return "INSERT INTO sessions(ip_src, ip_dst, port_src, port_dst, type_of_service) VALUES('"
+				+ string(s.get_string_src_ip()) + "', "
+				+ string(s.get_string_dst_ip()) + "', "
+				+ to_string(s.get_port_src()) + "', "
+				+ to_string(s.get_port_dst())
+				+ "', 'TCP');"; //TODO TCP hardcoded
+		}
+		void write_session_to_db(Session s) {
+			const char *data = "Insert called\n";
+			const char *sql_insert;
+			char *zErrMsg = 0;
+			int rc;
+
+			sql_insert = create_insert(s, NULL).c_str();
+			rc = sqlite3_exec(db, sql_insert, callback, (void *) data, &zErrMsg);
+			if (rc) {
+				cout << "Cannot execute insert query " << rc << " " << zErrMsg;
+			}
+			cout << sql_insert;
+		}
+};
+
+
+class DBSessionWriter : public DBConnector {
+	public:
+		static DevProbing vprobing;
+		bool is_probing;
+		DBSessionWriter() : is_probing(false) {}
+		~DBSessionWriter() {}
+		void start_probing(){
+			vprobing.open_dev();
+			is_probing = true;
+			while(is_probing) {
+				vprobing.dispatch_packet();
+			}
+		}
+		void stop_probing() {this->is_probing = false;}	
+		void write_to_database() {}
 };
 
 
