@@ -1,6 +1,11 @@
 #include <unordered_map>
 #include <queue>
 #include <ctime>
+#include <thread>
+#include <string>
+#include <iostream>
+
+#include <sqlite3.h>
 
 #include "packet.h"
 
@@ -21,6 +26,7 @@ class Session {
 		unsigned long bytes;
 		time_t start_timestamp;
 		time_t end_timestamp;
+		bool fin_activated, syn_activated;
 	public:
 		Session() : bytes(0), packets(0), start_timestamp(time(0)) {}
 		bool operator ==(const Session &other) { 
@@ -32,12 +38,21 @@ class Session {
 				return true;
 			return false;
 		}
+		char * time_to_char(time_t t) {
+			char *tt = ctime(&t);	
+			cout << "Local date and time is:" << tt << endl;
+			return tt;
+		}
+		void set_end_timestamp() {this->end_timestamp = time(0);}
+		/* Setters and getters*/
 		u_short get_port_dst() { return this->port_dst;}
 		u_short get_port_src() { return this->port_src;}
 		struct in_addr get_ip_src() { return this->ip_src;}
 		struct in_addr get_ip_dst() { return this->ip_dst;}
 		unsigned long get_packets() { return this->packets;}
 		unsigned long get_bytes() {return this->bytes;}
+		time_t get_start_timestamp() {return this->start_timestamp;}
+		time_t get_end_timestamp() {return this->end_timestamp;}
 		void set_ip_src(struct in_addr ip_src) { this->ip_src.s_addr = ip_src.s_addr;}
 		void set_ip_dst(struct in_addr ip_dst) { this->ip_dst.s_addr = ip_dst.s_addr;}
 		void set_port_src(u_short port_src) { this->port_src = port_src;}
@@ -73,6 +88,7 @@ class SessionAggregator {
 					s_map.erase(it);
 				}
 			}
+			return s;
 		}
 		/**
 		 * Receive info about session, classify it.
@@ -91,7 +107,7 @@ class SessionAggregator {
 				}
 			}
 		}
-		/**
+		/*
 		 * Reset multimap when info written to the database
 		 * Erase all elements;
 		 * */
@@ -145,7 +161,6 @@ class PacketProcess {
 		    u_int caplen = pkthdr->caplen;
 		    u_int length = pkthdr->len;
 		    struct ether_header *eptr;  /* net/ethernet.h */
-		    u_short ether_type;
 
 		    if (caplen < ETHER_HDRLEN)
 		    {
@@ -162,10 +177,7 @@ class PacketProcess {
 		{
 		    const struct my_tcp *tcp;
 		    u_int length = pkthdr->len;
-		    u_int hlen,off,version;
-		    int i;
-
-		    int len;
+		    u_int hlen;
 
 		    /* jump pass the ethernet header */
 		    tcp = (struct my_tcp*)(packet + sizeof(struct ether_header) + sizeof(struct iphdr));
@@ -202,7 +214,7 @@ class PacketProcess {
 		    const struct my_ip* ip;
 		    u_int length = pkthdr->len;
 		    u_int hlen,off,version;
-		    int i, len;
+		    int len;
 
 		    /* jump pass the ethernet header */
 		    ip = (struct my_ip*)(packet + sizeof(struct ether_header));
@@ -319,9 +331,46 @@ class DevProbing {
  * */
 class DBConnector {
 	public:
-		// TODO - add sqlite3 connection info
-		DBConnector();
-		~DBConnector();
+		string database_name;
+		DBConnector() : database_name("db.sqlite3") {}
+		~DBConnector() {}
+		static int callback(void *data, int argc, char **argv, char **azColName) {
+			cout << "argc is " << argc;
+			for(int i = 0; i < argc; i++){
+				cout << azColName[i] << " " << (argv[i] ? argv[i] : "NULL") << endl;
+			}
+			return 0;
+		}
+		void open_database() {
+			char *sql_select, *sql_insert;
+			char *zErrMsg = 0;
+			const char *data = "Callback fct called\n";
+			sqlite3 *db;
+			int rc;
+
+			rc = sqlite3_open("db.sqlite3", &db);
+			if (rc) {
+				cout << "Cannot open database\n";
+			}
+
+			sql_select = "SELECT * from vprofile_client";
+
+			sql_insert = "INSERT INTO vprofile_client(name, email, address, phone_number, \
+			      card_id, contract_id, contract_type, username, password) VALUES\
+			      ('Cristina Georgiana', 'cristina.opriceana@yahoo.com', 'Str. X, Nr 29', \
+			       +123456789, 'ADASFEDSFDDFF', 'CONTR_3', 'CONTR', 'cristina.georgiana', 'test123');";
+
+			if (db == NULL) {
+				cout << "DB IS NULL\n";
+			}
+			//rc = sqlite3_exec(db, sql, callback, (void *) data, &zErrMsg);
+			rc = sqlite3_exec(db, sql_insert, callback, (void *) data, &zErrMsg);
+
+			if (rc) {
+				cout << "Cannot execute query " << rc << " " << zErrMsg;
+			}
+			sqlite3_close(db);
+		}
 };
 
 
