@@ -332,7 +332,7 @@ class DevProbing {
 class DBConnector {
 	public:
 		string database_name;
-		DBConnector() : database_name("db.sqlite3") {}
+		DBConnector() : database_name("database") {}
 		~DBConnector() {}
 		static int callback(void *data, int argc, char **argv, char **azColName) {
 			cout << "argc is " << argc;
@@ -348,23 +348,22 @@ class DBConnector {
 			sqlite3 *db;
 			int rc;
 
-			rc = sqlite3_open("db.sqlite3", &db);
+			rc = sqlite3_open("database", &db);
 			if (rc) {
 				cout << "Cannot open database\n";
 			}
 
-			sql_select = "SELECT * from vprofile_client";
+			sql_select = "SELECT * from sessions";
 
-			sql_insert = "INSERT INTO vprofile_client(name, email, address, phone_number, \
-			      card_id, contract_id, contract_type, username, password) VALUES\
-			      ('Cristina Georgiana', 'cristina.opriceana@yahoo.com', 'Str. X, Nr 29', \
-			       +123456789, 'ADASFEDSFDDFF', 'CONTR_3', 'CONTR', 'cristina.georgiana', 'test123');";
-
+			
+			sql_insert = "INSERT INTO sessions(ip_src, ip_dst, \
+				      port_src, port_dst, type_of_service) \
+				      VALUES('a.b.c.d', '8.8.8.8', 23213, 80, 'TCP');";
 			if (db == NULL) {
 				cout << "DB IS NULL\n";
 			}
-			//rc = sqlite3_exec(db, sql, callback, (void *) data, &zErrMsg);
-			rc = sqlite3_exec(db, sql_insert, callback, (void *) data, &zErrMsg);
+			rc = sqlite3_exec(db, sql_select, callback, (void *) data, &zErrMsg);
+			//rc = sqlite3_exec(db, sql_insert, callback, (void *) data, &zErrMsg);
 
 			if (rc) {
 				cout << "Cannot execute query " << rc << " " << zErrMsg;
@@ -374,5 +373,9 @@ class DBConnector {
 };
 
 
-int main() {return 0;}
+int main() {
+	DBConnector datab;
+	datab.open_database();
+	return 0;
+}
 
