@@ -72,9 +72,8 @@ class Session {
 };
 
 class SessionAggregator {
-	protected:
-		unordered_multimap<u_short, Session> s_map; // map over source port
 	public:
+		unordered_multimap<u_short, Session> s_map; // map over source port
 		void add_session(Session s) {
 			pair<u_short, Session> s_pair(s.get_port_src(), s);
 			s_map.insert(s_pair);
@@ -322,7 +321,7 @@ class DevProbing {
 		 * Call pcap_loop(..) and pass in the callback function.
 		 * Loop packets on the selected interface.
 		 */
-		void dispatch_packet() {
+		int dispatch_packet() {
 			pcap_loop(descr, LOOP_PACKETS, my_callback,NULL);
 		}
 };
@@ -395,27 +394,57 @@ class DBConnector {
 };
 
 
-class DBSessionWriter : public DBConnector {
+class DBSessionManager {
 	public:
 		static DevProbing vprobing;
+		static DBConnector db_connector;
+		unsigned long seconds, bytes; /* threshold for writing to db */
 		bool is_probing;
-		DBSessionWriter() : is_probing(false) {}
-		~DBSessionWriter() {}
+
+		DBSessionManager(unsigned long seconds, unsigned long bytes) :is_probing(false) {
+			this->seconds = seconds;
+			this->bytes = bytes;
+		}
+		~DBSessionManager() {}
+		/*
+		 * Start listening for packets on an interface
+		 * */
 		void start_probing(){
 			vprobing.open_dev();
 			is_probing = true;
 			while(is_probing) {
 				vprobing.dispatch_packet();
+				if (--seconds == 0) {
+					write_to_database();
+					// TODO - change to (seconds == 0 || bytes == 0)
+					// with seconds and bytes computed the proper way
+					// not with second--
+					// TODO 2 - start new thread and call write_to_database() on it - easy
+				}
 			}
 		}
 		void stop_probing() {this->is_probing = false;}	
-		void write_to_database() {}
+		/* 
+		 * Insert all sessions into the sqlite3 datbase
+		 * */
+		void write_to_database() {
+			db_connector.open_database();
+			SessionAggregator s = vprobing.s_aggr;
+			unordered_multimap<u_short, Session> s_map = s.s_map;
+
+			int bucket_no = s_map.bucket_count();
+			for (int i = 0; i < bucket_no; i++) {
+				for (auto it = s_map.begin(i); it != s_map.end(i); it++) {
+					db_connector.write_session_to_db(it->second);
+				}
+			}
+			db_connector.close_database();
+		}
+
 };
 
-
 int main() {
-	DBConnector datab;
-	datab.open_database();
 	return 0;
 }
+
 
