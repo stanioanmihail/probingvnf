@@ -1,5 +1,6 @@
 #include <unordered_map>
 #include <queue>
+#include <ctime>
 
 #include "packet.h"
 
@@ -17,9 +18,11 @@ class Session {
 		transport_protocol t_prot;
 		type_of_service t_service;
 		unsigned long packets;
-		// Add timestamp - date
+		unsigned long bytes;
+		time_t start_timestamp;
+		time_t end_timestamp;
 	public:
-		Session() : packets(0) {}
+		Session() : bytes(0), packets(0), start_timestamp(time(0)) {}
 		bool operator ==(const Session &other) { 
 			/* packet is a request */
 			if (this->port_src == other.port_src && this->ip_src.s_addr == other.ip_src.s_addr)
@@ -34,6 +37,7 @@ class Session {
 		struct in_addr get_ip_src() { return this->ip_src;}
 		struct in_addr get_ip_dst() { return this->ip_dst;}
 		unsigned long get_packets() { return this->packets;}
+		unsigned long get_bytes() {return this->bytes;}
 		void set_ip_src(struct in_addr ip_src) { this->ip_src.s_addr = ip_src.s_addr;}
 		void set_ip_dst(struct in_addr ip_dst) { this->ip_dst.s_addr = ip_dst.s_addr;}
 		void set_port_src(u_short port_src) { this->port_src = port_src;}
@@ -42,8 +46,10 @@ class Session {
 		void set_t_service(type_of_service t) { this->t_service = t;}
 		void set_packets(unsigned long p) { this->packets = p;}
 		void inc_packets() {this->packets++;}
-		void add_packet_no(unsigned long p) {this->packets += p;}
+		void add_packet(unsigned long p) {this->packets += p;}
 		void reset_packets() {this->packets = 0;}
+		void set_bytes(unsigned long b) {this->bytes = b;}
+		void add_bytes(unsigned long b) {this->bytes += b;}
 
 		~Session() {}
 };
@@ -81,7 +87,7 @@ class SessionAggregator {
 			}
 			for (; it != s_map.end(); it++) {
 				if (it->second == s) {
-					it->second.add_packet_no(s.get_packets());
+					it->second.add_packet(s.get_packets());
 				}
 			}
 		}
@@ -287,6 +293,7 @@ class DevProbing {
 		 * Is it possible that this function will be called twice
 		 * in the same time, resulting in a race condition?!
 		 * Then, access to multimap should be sync;
+		 * -- No need, pcap uses buffers, all on a single thread.
 		 * */
 		static void my_callback(u_char *args,const struct pcap_pkthdr* pkthdr, 
 				const u_char* packet)
