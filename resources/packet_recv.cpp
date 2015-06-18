@@ -14,7 +14,10 @@
 using namespace std;
 
 enum transport_protocol {TCP, UDP, OTHER};
+static const string t_prot_string[] = {"TCP", "UDP", "OTHER"};
+
 enum type_of_service {HTTP, TORRENT, VIDEO, DEFAULT};
+static const string t_service_string[] = {"HTTP", "TORRENT", "VIDEO", "DEFAULT"};
 
 class Session {
 	private:
@@ -26,7 +29,7 @@ class Session {
 		unsigned long bytes;
 		time_t start_timestamp;
 		time_t end_timestamp;
-		/* local, don't get to the database */
+		/* local, these don't get to the database */
 		bool fin_activated, syn_activated;
 	public:
 		Session() : bytes(0), packets(0), start_timestamp(time(0)) {}
@@ -41,16 +44,32 @@ class Session {
 		}
 		char * time_to_char(time_t t) {
 			char *tt = ctime(&t);	
-			cout << "Local date and time is:" << tt << endl;
+		//	cout << "Local date and time is:" << tt << endl;
 			return tt;
+		}
+		/* convert IPs to string */
+		char * get_string_src_ip() { return inet_ntoa(this->ip_src);}
+		char * get_string_dst_ip() { return inet_ntoa(this->ip_dst);}
+
+		/* session to string  */
+		string to_string() {
+			return  "Source: " + string(get_string_src_ip()) + " "
+				+ "Dest: " + string (get_string_dst_ip()) + " "
+				+ "Source Port: " + std::to_string(port_src)
+				+ "Dest Port: " + std::to_string(port_dst) + " "
+				+ t_prot_string[t_prot] + " "
+				+ t_service_string[t_service] + " "
+				+ "Packets: " + std::to_string(packets)
+				+ "Bytes: " + std::to_string(bytes)
+				+ "Start time: " + string(time_to_char(start_timestamp))
+				+ "End time: " + string(time_to_char(end_timestamp))
+				+ "\n";
 		}
 		void set_end_timestamp() {this->end_timestamp = time(0);}
 		/* Setters and getters*/
 		u_short get_port_dst() { return this->port_dst;}
 		u_short get_port_src() { return this->port_src;}
 		struct in_addr get_ip_src() { return this->ip_src;}
-		char * get_string_src_ip() { return inet_ntoa(this->ip_src);}
-		char * get_string_dst_ip() { return inet_ntoa(this->ip_dst);}
 		struct in_addr get_ip_dst() { return this->ip_dst;}
 		unsigned long get_packets() { return this->packets;}
 		unsigned long get_bytes() {return this->bytes;}
@@ -74,7 +93,7 @@ class Session {
 
 class SessionAggregator {
 	public:
-		static unsigned long total_bytes;
+		unsigned long total_bytes;
 		unordered_multimap<u_short, Session> s_map; // map over source port
 
 		SessionAggregator() : total_bytes(0) {}
@@ -278,6 +297,8 @@ class PacketProcess {
 
 
 
+
+
 /* Acts as a manager for the events happening on one interface;
  * Takes packets from the if and send them to his SessionAggregator;
  * Then, it should talk to the DB through a DBConnector object;
@@ -292,19 +313,32 @@ class DevProbing {
 		//----------------------------------------------------
 		DevProbing() : dev(0), descr(0) {}
 		~DevProbing() {}
-		void open_dev() {
+		static void print_buckets() {
+			unordered_multimap<u_short, Session> s_map = s_aggr.s_map;
+
+			int bucket_no = s_map.bucket_count();
+			for (int i = 0; i < bucket_no; i++) {
+				cout << "#Bucket " << i << " : ";
+				for (auto it = s_map.begin(i); it != s_map.end(i); it++) {
+					cout << it->second.to_string();
+				}
+			}
+		}
+		int open_dev() {
 			/* lookup interface */
-			this->dev = pcap_lookupdev(errbuf);
+		//	this->dev = pcap_lookupdev(errbuf);
+			dev = "wlan0";
 			if(dev == NULL){
-				printf("%s\n",errbuf); exit(1);
-				return;
+				printf("Error: %s\n",errbuf); exit(1);
+				return -1;
 			}
 			/* open device for reading */
 			descr = pcap_open_live(dev,BUFSIZ,0,-1,errbuf);
 			if(descr == NULL){
 				printf("pcap_open_live(): %s\n",errbuf);
-				return;
+				return -1;
 			}
+			return 0;
 		}
 		/*
 		 * Callback function to be used for the packet processing on event
@@ -330,6 +364,9 @@ class DevProbing {
 			pcap_loop(descr, LOOP_PACKETS, my_callback,NULL);
 		}
 };
+
+SessionAggregator DevProbing::s_aggr;
+
 
 /*
  * Should definitely be done on another thread!
@@ -449,7 +486,10 @@ class DBSessionManager {
 };
 
 int main() {
+
+	DevProbing devP;
+	if (!devP.open_dev())
+		devP.dispatch_packet(); // 100 packets
+	devP.print_buckets();
 	return 0;
 }
-
-
