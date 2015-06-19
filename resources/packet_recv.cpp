@@ -9,16 +9,24 @@
 
 #include "packet.h"
 
-#define LOOP_PACKETS		10
+#define LOOP_PACKETS		100
 
 using namespace std;
 
 enum transport_protocol {TCP, UDP, OTHER};
 static const string t_prot_string[] = {"TCP", "UDP", "OTHER"};
 
-enum type_of_service {HTTP, TORRENT, VIDEO, DEFAULT};
-static const string t_service_string[] = {"HTTP", "TORRENT", "VIDEO", "DEFAULT"};
+enum type_of_service {HTTP, TORRENT, VIDEO, AUDIO, DEFAULT};
+static const string t_service_string[] = {"HTTP", "TORRENT", "VIDEO", "AUDIO", "DEFAULT"};
+ char *format_time(time_t t) {
 
+			struct tm * timeinfo = localtime(&t);
+			char *buffer = new char [80];
+			strftime(buffer, 80, "%Y-%m-19 %H:%M:01", timeinfo);
+			puts(buffer);
+			return buffer;
+		
+		}
 class Session {
 	private:
 		struct in_addr ip_src, ip_dst;
@@ -32,7 +40,7 @@ class Session {
 		/* local, these don't get to the database */
 		bool fin_activated, syn_activated;
 	public:
-		Session() : bytes(0), packets(0), start_timestamp(time(0)) {}
+		Session() : bytes(0), packets(0), start_timestamp(time(0)), end_timestamp(time(0)) {}
 		~Session() {}
 		bool operator ==(const Session &other) { 
 			/* packet is a request */
@@ -56,9 +64,14 @@ class Session {
 			//cout << "Local date and time is:" << tt << endl;
 			return tt;
 		}
+		
+		/* type of service to string - "HTTP", "VIDEO", ...*/
+		string t_service_to_string() {return t_service_string[t_service];}
+		/* transport prot to string - "TCP", ... */
+		string t_prot_to_string() {return t_prot_string[t_prot];}
 		/* convert IPs to string */
-		char * get_string_src_ip() { return inet_ntoa(this->ip_src);}
-		char * get_string_dst_ip() { return inet_ntoa(this->ip_dst);}
+		char *get_string_src_ip() { return inet_ntoa(this->ip_src);}
+		char *get_string_dst_ip() { return inet_ntoa(this->ip_dst);}
 
 		/* session to string  */
 		string to_string() {
@@ -319,7 +332,7 @@ class PacketProcess {
 
 class DevProbing {
 	public:
-		char *dev;
+		const char *dev;
 		char errbuf[PCAP_ERRBUF_SIZE];
 		pcap_t* descr;
 		static SessionAggregator s_aggr;
@@ -389,7 +402,8 @@ class DBConnector {
 	public:
 		string database_name;
 		sqlite3 *db;
-		DBConnector() : database_name("database") {}
+		DBConnector() : database_name("db.sqlite3") {}
+		DBConnector(string db) {this->database_name = db;}
 		~DBConnector() {}
 		static int callback(void *data, int argc, char **argv, char **azColName) {
 			cout << "argc is " << argc;
@@ -399,58 +413,61 @@ class DBConnector {
 			return 0;
 		}
 		void open_database() {
-			if(sqlite3_open("database", &db)) {
+			if(sqlite3_open(database_name.c_str(), &db)) {
 				cout << "Cannot open database\n";
 			}
 			cout << "Database opened\n";
-			/*
-			sql_select = "SELECT * from sessions";
-
-			
-			sql_insert = "INSERT INTO sessions(ip_src, ip_dst, \
-				      port_src, port_dst, type_of_service) \
-				      VALUES('a.b.c.d', '8.8.8.8', 23213, 80, 'TCP');";
-			if (db == NULL) {
-				cout << "DB IS NULL\n";
-			}	
-			rc = sqlite3_exec(db, sql_select, callback, (void *) data, &zErrMsg);
-			//rc = sqlite3_exec(db, sql_insert, callback, (void *) data, &zErrMsg);
-
-			if (rc) {
-				cout << "Cannot execute query " << rc << " " << zErrMsg;
-			}
-			sqlite3_close(db);
-			*/
 		}
 		void close_database() {
 			sqlite3_close(db);
 			cout << "Database closed\n";
 		}
-		string create_insert(Session s, char *table) {
+		string create_insert(Session s, char *table) { /* Does not want to write it */
 			/* hardcoded database for now */ 
 			return "INSERT INTO sessions(ip_src, ip_dst, port_src, port_dst, type_of_service) VALUES('"
 				+ string(s.get_string_src_ip()) + "', '"
-				+ string(s.get_string_dst_ip()) + "', '"
-				+ to_string(s.get_port_src()) + "', '"
+				+ string(s.get_string_dst_ip()) + "', "
+				+ to_string(s.get_port_src()) + ", "
 				+ to_string(s.get_port_dst())
-				+ "', 'TCP');"; //TODO TCP hardcoded
+				+ ", 'TCP');";
 		}
 		void write_session_to_db(Session s) {
 			const char *data = "Insert called\n";
-			const char *sql_insert;
 			char *zErrMsg = 0;
 			int rc;
 
-			cout << data;
-			sql_insert = create_insert(s, NULL).c_str();
-			cout << create_insert(s, NULL) << endl; /* #testing */
-			rc = sqlite3_exec(db, sql_insert, callback, (void *) data, &zErrMsg);
+			string insert_str = "INSERT INTO vprofile_rawdata(ip_src, ip_dst, \
+				port_src, port_dst, transport_protocol, \
+				host_address, traffic_type, \
+				timestamp_start, timestamp_end, \
+				no_packets, no_bytes) \
+				VALUES('" + string(s.get_string_src_ip())
+				+ "', '"
+				+ string (s.get_string_dst_ip())
+				+ "', "
+				+ to_string(s.get_port_src())
+				+ ", "
+				+ to_string(s.get_port_dst())
+				+ ", '"
+				+ s.t_prot_to_string()
+				+ "', '', '"
+				+ s.t_service_to_string()
+				+ "', '"
+				+ string(format_time(s.get_start_timestamp()))
+				+ "', '"
+				+ string(format_time(s.get_end_timestamp()))
+				+ "', 0, 0);";
+			const char *insert = insert_str.c_str();
+			cout << insert << "\n";
+			if (db == NULL) {
+				cout << "DB IS NULL\n";
+			}
+			rc = sqlite3_exec(db, insert, callback, (void *) data, &zErrMsg);
 			if (rc) {
-				cout << "Cannot execute insert query " << rc << " " << zErrMsg;
+				cout << "Cannot execute query " << rc << " " << zErrMsg;
 			}
 		}
 };
-
 
 class DBSessionManager {
 	public:
@@ -500,17 +517,17 @@ class DBSessionManager {
 		}
 
 };
+
 DevProbing DBSessionManager::vprobing;
 DBConnector DBSessionManager::db_connector;
 
 int main() {
-	//DevProbing devP;
 	DBSessionManager manager(1000, 30);
 	if (manager.vprobing.open_dev())
 		return -1;
 	manager.vprobing.dispatch_packet();
 	manager.vprobing.print_buckets();
 
-	manager.write_to_database();
+	manager.write_to_database();	
 	return 0;
 }
