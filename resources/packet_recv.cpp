@@ -9,7 +9,7 @@
 
 #include "packet.h"
 
-#define LOOP_PACKETS		100
+#define LOOP_PACKETS		10
 
 using namespace std;
 
@@ -33,18 +33,27 @@ class Session {
 		bool fin_activated, syn_activated;
 	public:
 		Session() : bytes(0), packets(0), start_timestamp(time(0)) {}
+		~Session() {}
 		bool operator ==(const Session &other) { 
 			/* packet is a request */
-			if (this->port_src == other.port_src && this->ip_src.s_addr == other.ip_src.s_addr)
-				return true;
-			/* packet is a reply */
-			if (this->port_src == other.port_dst && this->ip_src.s_addr == other.ip_dst.s_addr)
-				return true;
-			return false;
+			return is_request(other) || is_reply(other);
+		}
+
+		bool is_request(const Session &other) {
+			return (this->ip_src.s_addr == other.ip_src.s_addr &&
+					this->port_src == other.port_src &&
+					this->t_prot == other.t_prot);
+		}
+		bool is_reply(const Session &other) {
+			return (this->ip_src.s_addr == other.ip_dst.s_addr &&
+					this->ip_dst.s_addr == other.ip_src.s_addr &&
+					this->port_src == other.port_dst &&
+					this->port_dst == other.port_src &&
+					this->t_prot == other.t_prot);
 		}
 		char * time_to_char(time_t t) {
 			char *tt = ctime(&t);	
-		//	cout << "Local date and time is:" << tt << endl;
+			//cout << "Local date and time is:" << tt << endl;
 			return tt;
 		}
 		/* convert IPs to string */
@@ -66,6 +75,7 @@ class Session {
 				+ "\n";
 		}
 		void set_end_timestamp() {this->end_timestamp = time(0);}
+
 		/* Setters and getters*/
 		u_short get_port_dst() { return this->port_dst;}
 		u_short get_port_src() { return this->port_src;}
@@ -87,8 +97,6 @@ class Session {
 		void reset_packets() {this->packets = 0;}
 		void set_bytes(unsigned long b) {this->bytes = b;}
 		void add_bytes(unsigned long b) {this->bytes += b;}
-
-		~Session() {}
 };
 
 class SessionAggregator {
@@ -121,13 +129,19 @@ class SessionAggregator {
 		 * # test that find
 		 */
 		void classify_session(Session s) {
-			unordered_multimap<u_short, Session>::iterator it = s_map.find(s.get_port_src());
+			unordered_multimap<u_short, Session>::iterator it = s_map.find(s.get_port_dst());
+			/* search after dst first */
 			if (it == s_map.end()) {
-				add_session(s);
-				return;
+				/* search after source */
+				it = s_map.find(s.get_port_src());
+				if ( it == s_map.end()) {
+					add_session(s);
+					return;
+				}
 			}
+
 			for (; it != s_map.end(); it++) {
-				if (it->second == s) {
+				if (it->second == s) { /* overloaded operator */
 					it->second.add_packet(s.get_packets());
 				}
 			}
@@ -215,6 +229,9 @@ class PacketProcess {
 			printf("truncated tcp/udp/other %d",length);
 			return -1;
 		    }
+		    cout << " Src port:" << to_string(ntohs(tcp->th_sport));
+		    cout << " Dst port:" << to_string(ntohs(tcp->th_dport));
+
 		    s.set_port_src(ntohs(tcp->th_sport));
 		    s.set_port_dst(ntohs(tcp->th_dport));
 
@@ -286,17 +303,13 @@ class PacketProcess {
 			fprintf(stdout,"IP: ");
 			fprintf(stdout,"%s ",
 				inet_ntoa(ip->ip_src));
-			fprintf(stdout,"%s %d %d %d %d\n",
-				inet_ntoa(ip->ip_dst),
-				hlen,version,len,off);
+			fprintf(stdout,"%s\n",
+				inet_ntoa(ip->ip_dst));
 		    }
 		    handle_tcp(args, pkthdr, packet);
 		    return 0; /* success */
 		}
 };
-
-
-
 
 
 /* Acts as a manager for the events happening on one interface;
@@ -322,11 +335,12 @@ class DevProbing {
 				for (auto it = s_map.begin(i); it != s_map.end(i); it++) {
 					cout << it->second.to_string();
 				}
+				cout << endl;
 			}
 		}
 		int open_dev() {
 			/* lookup interface */
-		//	this->dev = pcap_lookupdev(errbuf);
+			//this->dev = pcap_lookupdev(errbuf); - TODO Maybe perform a lookup
 			dev = "wlan0";
 			if(dev == NULL){
 				printf("Error: %s\n",errbuf); exit(1);
@@ -366,7 +380,6 @@ class DevProbing {
 };
 
 SessionAggregator DevProbing::s_aggr;
-
 
 /*
  * Should definitely be done on another thread!
@@ -427,6 +440,7 @@ class DBConnector {
 			int rc;
 
 			sql_insert = create_insert(s, NULL).c_str();
+			cout << create_insert(s, NULL) << endl; /* #testing */
 			rc = sqlite3_exec(db, sql_insert, callback, (void *) data, &zErrMsg);
 			if (rc) {
 				cout << "Cannot execute insert query " << rc << " " << zErrMsg;
@@ -488,8 +502,9 @@ class DBSessionManager {
 int main() {
 
 	DevProbing devP;
-	if (!devP.open_dev())
-		devP.dispatch_packet(); // 100 packets
+	if (devP.open_dev())
+		return -1;
+	devP.dispatch_packet(); /* test on 100 packets */
 	devP.print_buckets();
 	return 0;
 }
