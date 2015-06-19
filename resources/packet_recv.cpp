@@ -402,6 +402,7 @@ class DBConnector {
 			if(sqlite3_open("database", &db)) {
 				cout << "Cannot open database\n";
 			}
+			cout << "Database opened\n";
 			/*
 			sql_select = "SELECT * from sessions";
 
@@ -423,13 +424,14 @@ class DBConnector {
 		}
 		void close_database() {
 			sqlite3_close(db);
+			cout << "Database closed\n";
 		}
 		string create_insert(Session s, char *table) {
 			/* hardcoded database for now */ 
 			return "INSERT INTO sessions(ip_src, ip_dst, port_src, port_dst, type_of_service) VALUES('"
-				+ string(s.get_string_src_ip()) + "', "
-				+ string(s.get_string_dst_ip()) + "', "
-				+ to_string(s.get_port_src()) + "', "
+				+ string(s.get_string_src_ip()) + "', '"
+				+ string(s.get_string_dst_ip()) + "', '"
+				+ to_string(s.get_port_src()) + "', '"
 				+ to_string(s.get_port_dst())
 				+ "', 'TCP');"; //TODO TCP hardcoded
 		}
@@ -439,13 +441,13 @@ class DBConnector {
 			char *zErrMsg = 0;
 			int rc;
 
+			cout << data;
 			sql_insert = create_insert(s, NULL).c_str();
 			cout << create_insert(s, NULL) << endl; /* #testing */
 			rc = sqlite3_exec(db, sql_insert, callback, (void *) data, &zErrMsg);
 			if (rc) {
 				cout << "Cannot execute insert query " << rc << " " << zErrMsg;
 			}
-			cout << sql_insert;
 		}
 };
 
@@ -457,7 +459,7 @@ class DBSessionManager {
 		unsigned long seconds, bytes; /* threshold for writing to db */
 		bool is_probing;
 
-		DBSessionManager(unsigned long seconds, unsigned long bytes) :is_probing(false) {
+		DBSessionManager(unsigned long seconds, unsigned long bytes) : is_probing(false) {
 			this->seconds = seconds;
 			this->bytes = bytes;
 		}
@@ -468,7 +470,7 @@ class DBSessionManager {
 		void start_probing(){
 			vprobing.open_dev();
 			is_probing = true;
-			while(is_probing) {
+			//while(is_probing) {
 				vprobing.dispatch_packet();
 				if (--seconds == 0) {
 					write_to_database();
@@ -477,7 +479,7 @@ class DBSessionManager {
 					// not with second--
 					// TODO 2 - start new thread and call write_to_database() on it - easy
 				}
-			}
+			//}
 		}
 		void stop_probing() {this->is_probing = false;}	
 		/* 
@@ -498,13 +500,17 @@ class DBSessionManager {
 		}
 
 };
+DevProbing DBSessionManager::vprobing;
+DBConnector DBSessionManager::db_connector;
 
 int main() {
-
-	DevProbing devP;
-	if (devP.open_dev())
+	//DevProbing devP;
+	DBSessionManager manager(1000, 30);
+	if (manager.vprobing.open_dev())
 		return -1;
-	devP.dispatch_packet(); /* test on 100 packets */
-	devP.print_buckets();
+	manager.vprobing.dispatch_packet();
+	manager.vprobing.print_buckets();
+
+	manager.write_to_database();
 	return 0;
 }
