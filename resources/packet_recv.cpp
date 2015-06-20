@@ -18,11 +18,12 @@ static const string t_prot_string[] = {"TCP", "UDP", "OTHER"};
 
 enum type_of_service {HTTP, TORRENT, VIDEO, AUDIO, DEFAULT};
 static const string t_service_string[] = {"HTTP", "TORRENT", "VIDEO", "AUDIO", "DEFAULT"};
- char *format_time(time_t t) {
+
+char *format_time(time_t t) {
 
 			struct tm * timeinfo = localtime(&t);
 			char *buffer = new char [80];
-			strftime(buffer, 80, "%Y-%m-19 %H:%M:01", timeinfo);
+			strftime(buffer, 80, "%Y-%m-%d %H:%M:%S", timeinfo);
 			puts(buffer);
 			return buffer;
 		
@@ -456,7 +457,11 @@ class DBConnector {
 				+ string(format_time(s.get_start_timestamp()))
 				+ "', '"
 				+ string(format_time(s.get_end_timestamp()))
-				+ "', 0, 0);";
+				+ "', "
+				+ to_string(s.get_packets())
+				+ ", "
+				+ to_string(s.get_bytes())
+				+ ");";
 			const char *insert = insert_str.c_str();
 			cout << insert << "\n";
 			if (db == NULL) {
