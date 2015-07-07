@@ -11,7 +11,7 @@
 #include "packet.h"
 
 
-#define LOOP_PACKETS		1000
+#define LOOP_PACKETS		100
 
 using namespace std;
 
@@ -448,8 +448,10 @@ class DevProbing {
 		char errbuf[PCAP_ERRBUF_SIZE];
 		pcap_t* descr;
 		static SessionAggregator s_aggr;
+		unsigned int loop_packs;
 		//----------------------------------------------------
-		DevProbing() : dev(0), descr(0) {}
+		DevProbing() : dev(0), descr(0), loop_packs(100) {}
+		DevProbing(unsigned int p) : dev(0), descr(0), loop_packs(p) {}
 		~DevProbing() {}
 		static void print_buckets() {
 			unordered_multimap<u_short, Session> s_map = s_aggr.s_map;
