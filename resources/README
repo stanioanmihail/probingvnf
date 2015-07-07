@@ -20,17 +20,11 @@ Packets | Bytes | Start Timestamp |  End Timestamp
 DataBaseConnector should be started on a different thread and spill data to sqlite3 
 when a timer is elapsed (in seconds) or when a number of intercepted bytes is reached.
 
-# Compile pcap program
-make
-
-#------------------------------------------
-# Local Test Files Information
+# ------------------------------------------
+# Compile Analysor program and run
 # -----------------------------------------
-
-gcc pcap_test.c -lpcap -o pcaptest
-
-# tested on eth0
-sudo ./pcaptest 100
+make # default runs on wlan0
+sudo ./pack 
 
 # If your version of pcap is not compatible,
 # generate a symbolic link to the requested version
@@ -44,7 +38,7 @@ gcc test_db.c -l sqlite3 -o sql
 # -------------------------------------
 
 1. Don't add multicast packets to SessionAggregator
-2. Check if callback is called multiple times simmultanously and sync
-3. Check video traffic, find a way to recognize it
-4. Add timestamp + duration to Session!
+2. Check if callback is called multiple times simmultanously and sync [ok]
+3. Check video traffic, find a way to recognize it [ok]
+4. Add timestamp + duration to Session!	[ok]
 
