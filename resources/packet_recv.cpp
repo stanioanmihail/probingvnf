@@ -4,12 +4,14 @@
 #include <thread>
 #include <string>
 #include <iostream>
+#include <cstdlib>
+#include <sys/time.h>
 
-#include <sqlite3.h>
-
+#include <postgresql/libpq-fe.h>
 #include "packet.h"
 
-#define LOOP_PACKETS		100
+
+#define LOOP_PACKETS		500
 
 using namespace std;
 
@@ -20,14 +22,13 @@ enum type_of_service {HTTP, TORRENT, VIDEO, AUDIO, DEFAULT};
 static const string t_service_string[] = {"HTTP", "TORRENT", "VIDEO", "AUDIO", "DEFAULT"};
 
 char *format_time(time_t t) {
-
 			struct tm * timeinfo = localtime(&t);
 			char *buffer = new char [80];
 			strftime(buffer, 80, "%Y-%m-%d %H:%M:%S", timeinfo);
 			puts(buffer);
 			return buffer;
-		
-		}
+}
+
 class Session {
 	private:
 		struct in_addr ip_src, ip_dst;
@@ -43,7 +44,7 @@ class Session {
 	public:
 		Session() : bytes(0), packets(0), start_timestamp(time(0)), end_timestamp(time(0)) {}
 		~Session() {}
-		bool operator ==(const Session &other) { 
+		bool operator ==(const Session &other) {
 			/* packet is a request */
 			return is_request(other) || is_reply(other);
 		}
@@ -61,11 +62,11 @@ class Session {
 					this->t_prot == other.t_prot);
 		}
 		char * time_to_char(time_t t) {
-			char *tt = ctime(&t);	
+			char *tt = ctime(&t);
 			//cout << "Local date and time is:" << tt << endl;
 			return tt;
 		}
-		
+
 		/* type of service to string - "HTTP", "VIDEO", ...*/
 		string t_service_to_string() {return t_service_string[t_service];}
 		/* transport prot to string - "TCP", ... */
@@ -177,7 +178,10 @@ class SessionAggregator {
 class PacketProcess {
 	private:
 		Session s;
+		u_int len;
 	public:
+		static unsigned long total_packets;
+		static unsigned long total_ms;
 		queue<struct pcap_pkthdr> packet_buffer; // Not sure if to use it yet
 		PacketProcess() {}
 		~PacketProcess() {}
@@ -194,11 +198,24 @@ class PacketProcess {
 		int is_session_start(struct my_tcp *tcp) {
 			return (tcp->th_flags & 0x10); /* SYN + ACK */
 		}
+		void print_payload(const u_char *packet) {
+
+			u_char *payload = (u_char*) (packet + sizeof(struct my_tcp)
+						+ sizeof(struct ether_header)
+						+ sizeof(struct iphdr));
+
+			cout << "\n------------------------\n";
+			cout << "Payload len : "<< this->len  << endl;
+			for (unsigned int i = 0; i < len; i++) {
+				cout << payload[i];
+			}
+			cout << "\n--------------------------\n";
+		}
 		int process_packet (u_char *args,const struct pcap_pkthdr* pkthdr,
 				     const u_char* packet)
 		{
 			u_int16_t type = handle_ethernet(args,pkthdr,packet);
-
+			total_packets++;
 			if(type == ETHERTYPE_IP) {/* handle IP packet */
 				if (!handle_IP(args,pkthdr,packet)) {
 					s.inc_packets();
@@ -230,28 +247,33 @@ class PacketProcess {
 		{
 		    const struct my_tcp *tcp;
 		    u_int length = pkthdr->len;
-		    u_int hlen;
 
 		    /* jump pass the ethernet header */
 		    tcp = (struct my_tcp*)(packet + sizeof(struct ether_header) + sizeof(struct iphdr));
 		    length -= sizeof(struct ether_header);
-		    length -= sizeof(struct iphdr); 
+		    length -= sizeof(struct iphdr);
 
-		    printf("IP HDR LEN: %lu\n", sizeof(struct iphdr));
+		    char *payload = (char *)(packet + sizeof(struct ether_header)
+					+ sizeof(struct iphdr) + sizeof(struct my_tcp));
 		    /* check to see we have a packet of valid length */
 		    if (length < sizeof(struct my_tcp)) {
 			printf("truncated tcp/udp/other %d",length);
 			return -1;
 		    }
-		    cout << " Src port:" << to_string(ntohs(tcp->th_sport));
-		    cout << " Dst port:" << to_string(ntohs(tcp->th_dport));
+		    //cout << " Src port:" << to_string(ntohs(tcp->th_sport));
+		    //cout << " Dst port:" << to_string(ntohs(tcp->th_dport));
 
 		    s.set_port_src(ntohs(tcp->th_sport));
 		    s.set_port_dst(ntohs(tcp->th_dport));
 
-		    if (ntohs(tcp->th_dport) == 443 || ntohs(tcp->th_dport) == 80) {
+		    this->len -= sizeof(struct iphdr);
+		    this->len -= sizeof(struct my_tcp);
 
-			s.set_t_service(HTTP); 
+		    if (ntohs(tcp->th_dport) == 443 | ntohs(tcp->th_dport == 80)) {
+			s.set_t_service(HTTP);
+		    }
+		    if (ntohs(tcp->th_dport) == 443){
+			    s.set_t_service(HTTP);
 			    //printf("PORT SRC: %d\n and PORT DTS: %d\n",  ntohs(tcp->th_sport),  ntohs(tcp->th_dport));
 			    // TODO get_domain_name(args, pkthdr, packet);
 		    } else if (ntohs(tcp->th_dport) == 9091 || ntohs(tcp->th_dport) == 30301 ||
@@ -274,14 +296,14 @@ class PacketProcess {
 
 		    /* jump pass the ethernet header */
 		    ip = (struct my_ip*)(packet + sizeof(struct ether_header));
-		    length -= sizeof(struct ether_header); 
+		    length -= sizeof(struct ether_header);
 
 		    /* check to see we have a packet of valid length */
 		    if (length < sizeof(struct my_ip)) {
 			printf("truncated ip %d",length);
 			return -1;
 		    }
-		    len     = ntohs(ip->ip_len);
+		    this->len     = ntohs(ip->ip_len);
 		    hlen    = IP_HL(ip); /* header length */
 		    version = IP_V(ip);/* ip version */
 
@@ -355,7 +377,7 @@ class DevProbing {
 		int open_dev() {
 			/* lookup interface */
 			//this->dev = pcap_lookupdev(errbuf); - TODO Maybe perform a lookup
-			dev = "wlan0";
+			dev = "eth0";
 			if(dev == NULL){
 				printf("Error: %s\n",errbuf); exit(1);
 				return -1;
@@ -375,14 +397,14 @@ class DevProbing {
 		 * Then, access to multimap should be sync;
 		 * -- No need, pcap uses buffers, all on a single thread.
 		 * */
-		static void my_callback(u_char *args,const struct pcap_pkthdr* pkthdr, 
+		static void my_callback(u_char *args,const struct pcap_pkthdr* pkthdr,
 				const u_char* packet)
 		{
-			// Better use a Visitor.visit();
 			PacketProcess process_pack;
 			if (!process_pack.process_packet(args, pkthdr, packet)) { /* only on success */
 				s_aggr.classify_session(process_pack.get_session());
 			}
+			process_pack.print_payload(packet);
 		}
 		/* *
 		 * Call pcap_loop(..) and pass in the callback function.
@@ -402,29 +424,32 @@ SessionAggregator DevProbing::s_aggr;
 class DBConnector {
 	public:
 		string database_name;
-		sqlite3 *db;
-		DBConnector() : database_name("db.sqlite3") {}
+		PGconn          *conn;
+		PGresult        *res;
+		int             rec_count;
+		int             row;
+		int             col;
+
+		DBConnector() : database_name("vpersonna") {}
 		DBConnector(string db) {this->database_name = db;}
 		~DBConnector() {}
-		static int callback(void *data, int argc, char **argv, char **azColName) {
-			cout << "argc is " << argc;
-			for(int i = 0; i < argc; i++){
-				cout << azColName[i] << " " << (argv[i] ? argv[i] : "NULL") << endl;
-			}
-			return 0;
-		}
+
 		void open_database() {
-			if(sqlite3_open(database_name.c_str(), &db)) {
-				cout << "Cannot open database\n";
+			cout << "Open db\n";
+			conn = PQconnectdb("dbname=vpersonna host=192.168.1.107 user=vpersonna password=Abcd123!");
+			if (PQstatus(conn) == CONNECTION_BAD) {
+				cout << "We were unable to connect to the database\n";
+			} else {
+				cout << "Connected\n";
 			}
-			cout << "Database opened\n";
+			cout << "Exit open_db()\n";
 		}
 		void close_database() {
-			sqlite3_close(db);
-			cout << "Database closed\n";
+			PQclear(res);
+			PQfinish(conn);
 		}
 		string create_insert(Session s, char *table) { /* Does not want to write it */
-			/* hardcoded database for now */ 
+			/* hardcoded database for now */
 			return "INSERT INTO sessions(ip_src, ip_dst, port_src, port_dst, type_of_service) VALUES('"
 				+ string(s.get_string_src_ip()) + "', '"
 				+ string(s.get_string_dst_ip()) + "', "
@@ -434,8 +459,6 @@ class DBConnector {
 		}
 		void write_session_to_db(Session s) {
 			const char *data = "Insert called\n";
-			char *zErrMsg = 0;
-			int rc;
 
 			string insert_str = "INSERT INTO vprofile_rawdata(ip_src, ip_dst, \
 				port_src, port_dst, transport_protocol, \
@@ -464,12 +487,24 @@ class DBConnector {
 				+ ");";
 			const char *insert = insert_str.c_str();
 			cout << insert << "\n";
-			if (db == NULL) {
-				cout << "DB IS NULL\n";
+			if (conn == NULL) {
+				cout << "DB is null\n";
+				return;
 			}
-			rc = sqlite3_exec(db, insert, callback, (void *) data, &zErrMsg);
-			if (rc) {
-				cout << "Cannot execute query " << rc << " " << zErrMsg;
+			res = PQexec(conn, insert);
+
+			if (PQresultStatus(res) != PGRES_TUPLES_OK) {
+				cout << "We did not get any data!\n";
+			}
+			rec_count = PQntuples(res);
+			cout << "We received " << rec_count << " records.\n";
+			cout << "==========================\n";
+
+			for (row=0; row<rec_count; row++) {
+				for (col=0; col<3; col++) {
+					printf("%s\t", PQgetvalue(res, row, col));
+				}
+				puts("");
 			}
 		}
 };
@@ -503,15 +538,16 @@ class DBSessionManager {
 				}
 			//}
 		}
-		void stop_probing() {this->is_probing = false;}	
-		/* 
+		void stop_probing() {this->is_probing = false;}
+		/*
 		 * Insert all sessions into the sqlite3 datbase
 		 * */
 		void write_to_database() {
+
 			db_connector.open_database();
 			SessionAggregator s = vprobing.s_aggr;
 			unordered_multimap<u_short, Session> s_map = s.s_map;
-
+			cout << "Start writing to db\n";
 			int bucket_no = s_map.bucket_count();
 			for (int i = 0; i < bucket_no; i++) {
 				for (auto it = s_map.begin(i); it != s_map.end(i); it++) {
@@ -523,16 +559,23 @@ class DBSessionManager {
 
 };
 
+unsigned long PacketProcess::total_packets = 0;
+unsigned long PacketProcess::total_ms = 0;
+
 DevProbing DBSessionManager::vprobing;
 DBConnector DBSessionManager::db_connector;
 
+
 int main() {
+	cout << "Found time: " << PacketProcess::total_ms << endl;
+
+
 	DBSessionManager manager(1000, 30);
 	if (manager.vprobing.open_dev())
 		return -1;
 	manager.vprobing.dispatch_packet();
 	manager.vprobing.print_buckets();
 
-	manager.write_to_database();	
+	manager.write_to_database();
 	return 0;
 }
