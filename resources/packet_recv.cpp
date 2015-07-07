@@ -518,16 +518,24 @@ class DBConnector {
 		PGconn          *conn;
 		PGresult        *res;
 		int             rec_count;
-		int             row;
-		int             col;
+		int             row, col;
+		string		IP, user, pass;
 
-		DBConnector() : database_name("vpersonna") {}
-		DBConnector(string db) {this->database_name = db;}
+		/* Default constructor */
+		DBConnector() : database_name("vpersonna"), IP("92.81.85.239"), user("vpersonna"), pass("Abcd123!") {}
+		/* Params for ip user password */
+		DBConnector(const string ip, const string user, const string pass) {
+			this->IP = ip;
+			this->user = user;
+			this->pass = pass;
+		}
 		~DBConnector() {}
 
 		void open_database() {
 			cout << "Open db\n";
-			conn = PQconnectdb("dbname=vpersonna host=192.168.1.107 user=vpersonna password=Abcd123!");
+			string connect_info = "dbname=vpersonna host=" + IP + " user=" + user + " password=" + pass;
+			cout << "COnnect info: " << connect_info << "\n";
+			conn = PQconnectdb(connect_info.c_str());
 			if (PQstatus(conn) == CONNECTION_BAD) {
 				cout << "We were unable to connect to the database\n";
 			} else {
