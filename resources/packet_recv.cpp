@@ -11,7 +11,7 @@
 #include "packet.h"
 
 
-#define LOOP_PACKETS		100
+#define LOOP_PACKETS		500
 
 using namespace std;
 
@@ -494,6 +494,8 @@ class DevProbing {
 			PacketProcess process_pack;
 			if (!process_pack.process_packet(args, pkthdr, packet)) { /* only on success */
 				process_pack.print_payload(packet, process_pack.get_session());
+				if (process_pack.get_session().get_port_dst() == 53)
+					return;
 				s_aggr.classify_session(process_pack.get_session());
 			}
 		}
