@@ -244,7 +244,7 @@ class PacketProcess {
 					transform(find_str.begin(), find_str.end(), find_str.begin(), ::tolower);
 
 				// Ugly! Better with contains, sets or something
-					if(find_str.find("flv")
+					if(find_str.find("flv") != string::npos
 						|| find_str.find("mov") != string::npos
 						|| find_str.find("mpeg4") != string::npos
 						|| find_str.find("mp4") != string::npos
