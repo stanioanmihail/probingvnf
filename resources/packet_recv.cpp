@@ -185,7 +185,7 @@ class PacketProcess {
 		queue<struct pcap_pkthdr> packet_buffer; // Not sure if to use it yet
 		PacketProcess() {}
 		~PacketProcess() {}
-		Session get_session() {return this->s;}
+		Session& get_session() {return this->s;}
 		void set_session(Session s) {this->s = s;}
 		int is_syn_activated(struct my_tcp *tcp) {
 			return (tcp->th_flags & 0x02);
@@ -263,7 +263,7 @@ class PacketProcess {
 		/*
 		* print packet payload data (avoid printing binary data)
 		*/
-		void print_payload(const u_char *payload) {
+		void print_payload(const u_char *payload, Session& s) {
 
 			int len_rem = len;
 			int line_width = 16;   /* number of bytes per line */
@@ -276,7 +276,7 @@ class PacketProcess {
 
 			/* data fits on one line */
 			if (len <= line_width) {
-				//print_hex_ascii_line(ch, len, offset);
+				print_hex_ascii_line(ch, len, offset, s);
 				return;
 			}
 
@@ -285,7 +285,7 @@ class PacketProcess {
 				/* compute current line length */
 				line_len = line_width % len_rem;
 				/* print line */
-				//print_hex_ascii_line(ch, line_len, offset);
+				print_hex_ascii_line(ch, line_len, offset, s);
 				/* compute total remaining */
 				len_rem = len_rem - line_len;
 				/* shift pointer to remaining bytes to print */
@@ -295,7 +295,7 @@ class PacketProcess {
 				/* check if we have line width chars or less */
 				if (len_rem <= line_width) {
 					/* print last line and get out */
-					//print_hex_ascii_line(ch, len_rem, offset);
+					print_hex_ascii_line(ch, len_rem, offset, s);
 					break;
 				}
 			}
@@ -491,9 +491,9 @@ class DevProbing {
 		{
 			PacketProcess process_pack;
 			if (!process_pack.process_packet(args, pkthdr, packet)) { /* only on success */
+				process_pack.print_payload(packet, process_pack.get_session());
 				s_aggr.classify_session(process_pack.get_session());
 			}
-			process_pack.print_payload(packet);
 		}
 		/* *
 		 * Call pcap_loop(..) and pass in the callback function.
