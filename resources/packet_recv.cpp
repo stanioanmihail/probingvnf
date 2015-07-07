@@ -5,13 +5,13 @@
 #include <string>
 #include <iostream>
 #include <cstdlib>
-#include <sys/time.h>
+#include <algorithm>
 
 #include <postgresql/libpq-fe.h>
 #include "packet.h"
 
 
-#define LOOP_PACKETS		500
+#define LOOP_PACKETS		1000
 
 using namespace std;
 
@@ -198,19 +198,109 @@ class PacketProcess {
 		int is_session_start(struct my_tcp *tcp) {
 			return (tcp->th_flags & 0x10); /* SYN + ACK */
 		}
-		void print_payload(const u_char *packet) {
+		/* function from tcpdump */
+		void print_hex_ascii_line(const u_char *payload, int len, int offset, Session& s) {
+			int i, gap;
+			const u_char *ch;
 
-			u_char *payload = (u_char*) (packet + sizeof(struct my_tcp)
-						+ sizeof(struct ether_header)
-						+ sizeof(struct iphdr));
+			/* offset */
+			printf("%05d   ", offset);
 
-			cout << "\n------------------------\n";
-			cout << "Payload len : "<< this->len  << endl;
-			for (unsigned int i = 0; i < len; i++) {
-				cout << payload[i];
+			/* hex */
+			ch = payload;
+			for(i = 0; i < len; i++) {
+				printf("%02x ", *ch);
+				ch++;
+				/* print extra space after 8th byte for visual aid */
+				if (i == 7)
+					printf(" ");
 			}
-			cout << "\n--------------------------\n";
+			/* print space to handle line less than 8 bytes */
+			if (len < 8)
+				printf(" ");
+
+			/* fill hex gap with spaces if not full line */
+			if (len < 16) {
+				gap = 16 - len;
+				for (i = 0; i < gap; i++) {
+					printf("   ");
+				}
+			}
+			printf("   ");
+
+			/* ascii (if printable) */
+			ch = payload;
+			char line[100]; int charno = 0;
+			for(i = 0; i < len; i++) {
+				if (isprint(*ch)) {
+					printf("%c", *ch);
+					line[charno] = (char) *ch;
+				} else {
+					printf(".");
+				}
+				ch++;
+				if (line[charno] % 100 == 0) {
+					string find_str(line, 100);
+					transform(find_str.begin(), find_str.end(), find_str.begin(), ::tolower);
+
+				// Ugly! Better with contains, sets or something
+					if(find_str.find("flv")
+						|| find_str.find("mov") != string::npos
+						|| find_str.find("mpeg4") != string::npos
+						|| find_str.find("mp4") != string::npos
+						|| find_str.find("mov") != string::npos
+						|| find_str.find("avi") != string::npos
+						|| find_str.find("mpegps") != string::npos
+						|| find_str.find("webm") != string::npos) {
+							cout << "FOUND\n";
+							s.set_t_service(VIDEO);
+					}
+				}
+			}
+			printf("\n");
 		}
+
+		/*
+		* print packet payload data (avoid printing binary data)
+		*/
+		void print_payload(const u_char *payload) {
+
+			int len_rem = len;
+			int line_width = 16;   /* number of bytes per line */
+			int line_len;
+			int offset = 0;     /* zero-based offset counter */
+			const u_char *ch = payload;
+
+			if (len <= 0)
+				return;
+
+			/* data fits on one line */
+			if (len <= line_width) {
+				//print_hex_ascii_line(ch, len, offset);
+				return;
+			}
+
+			/* data spans multiple lines */
+			for ( ;; ) {
+				/* compute current line length */
+				line_len = line_width % len_rem;
+				/* print line */
+				//print_hex_ascii_line(ch, line_len, offset);
+				/* compute total remaining */
+				len_rem = len_rem - line_len;
+				/* shift pointer to remaining bytes to print */
+				ch = ch + line_len;
+				/* add offset */
+				offset = offset + line_width;
+				/* check if we have line width chars or less */
+				if (len_rem <= line_width) {
+					/* print last line and get out */
+					//print_hex_ascii_line(ch, len_rem, offset);
+					break;
+				}
+			}
+		}
+
 		int process_packet (u_char *args,const struct pcap_pkthdr* pkthdr,
 				     const u_char* packet)
 		{
@@ -282,7 +372,7 @@ class PacketProcess {
 			s.set_t_service(TORRENT);
 		    } else {
 			    s.set_t_service(DEFAULT);
-		    } // TODO add if (VIDEO)
+		    }
 		    return 0;
 		}
 		//------------------------------------------------------------------
@@ -292,7 +382,6 @@ class PacketProcess {
 		    const struct my_ip* ip;
 		    u_int length = pkthdr->len;
 		    u_int hlen,off,version;
-		    int len;
 
 		    /* jump pass the ethernet header */
 		    ip = (struct my_ip*)(packet + sizeof(struct ether_header));
@@ -300,7 +389,7 @@ class PacketProcess {
 
 		    /* check to see we have a packet of valid length */
 		    if (length < sizeof(struct my_ip)) {
-			printf("truncated ip %d",length);
+			printf("truncated ip %d\n",length);
 			return -1;
 		    }
 		    this->len     = ntohs(ip->ip_len);
@@ -336,11 +425,11 @@ class PacketProcess {
 		     /* Check to see if we have the first fragment */
 		    if((off & 0x1fff) == 0 )/* aka no 1's in first 13 bits */
 		    {/* print SOURCE DESTINATION hlen version len offset */
-			fprintf(stdout,"IP: ");
-			fprintf(stdout,"%s ",
-				inet_ntoa(ip->ip_src));
-			fprintf(stdout,"%s\n",
-				inet_ntoa(ip->ip_dst));
+			//fprintf(stdout,"IP: ");
+			//fprintf(stdout,"%s ",
+			//	inet_ntoa(ip->ip_src));
+			//fprintf(stdout,"%s\n",
+			//	inet_ntoa(ip->ip_dst));
 		    }
 		    handle_tcp(args, pkthdr, packet);
 		    return 0; /* success */
@@ -377,7 +466,7 @@ class DevProbing {
 		int open_dev() {
 			/* lookup interface */
 			//this->dev = pcap_lookupdev(errbuf); - TODO Maybe perform a lookup
-			dev = "eth0";
+			dev = "wlan0";
 			if(dev == NULL){
 				printf("Error: %s\n",errbuf); exit(1);
 				return -1;
@@ -556,7 +645,6 @@ class DBSessionManager {
 			}
 			db_connector.close_database();
 		}
-
 };
 
 unsigned long PacketProcess::total_packets = 0;
@@ -568,7 +656,6 @@ DBConnector DBSessionManager::db_connector;
 
 int main() {
 	cout << "Found time: " << PacketProcess::total_ms << endl;
-
 
 	DBSessionManager manager(1000, 30);
 	if (manager.vprobing.open_dev())
