@@ -464,9 +464,13 @@ class DevProbing {
 		static SessionAggregator s_aggr;
 		unsigned int loop_packs;
 		//----------------------------------------------------
-		DevProbing() : dev(0), descr(0), loop_packs(100) {}
+		/* Default goes on wlan0 */
+		DevProbing() : dev("wlan0"), descr(0), loop_packs(100) {}
 		DevProbing(unsigned int p) : dev(0), descr(0), loop_packs(p) {}
 		~DevProbing() {}
+		void set_interface(const char *device) {
+			this->dev = device;
+		}
 		static void print_buckets() {
 			unordered_multimap<u_short, Session> s_map = s_aggr.s_map;
 
@@ -481,8 +485,7 @@ class DevProbing {
 		}
 		int open_dev() {
 			/* lookup interface */
-			//this->dev = pcap_lookupdev(errbuf); - TODO Maybe perform a lookup
-			dev = "wlan0";
+			cout << "Opening interface " << dev << endl;
 			if(dev == NULL){
 				printf("Error: %s\n",errbuf); exit(1);
 				return -1;
@@ -702,6 +705,9 @@ int main(int argc, char *argv[]) {
 	if (argc == 2) {
 		manager.db_connector.set_IP(string(ip));
 		cout << "Set ip for DB access:: \n" << ip << endl;
+	}
+	if (argc == 3) {
+		manager.vprobing.set_interface(argv[2]);
 	}
 	manager.vprobing.dispatch_packet();
 	manager.vprobing.print_buckets();
