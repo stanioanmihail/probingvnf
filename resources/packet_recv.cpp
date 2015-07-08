@@ -692,16 +692,17 @@ int main(int argc, char *argv[]) {
 	cout << "Found time: " << PacketProcess::total_ms << endl;
 
 	if (argc < 2) {
-		cout << "Number of arguments min 2\n";
-		return 0;
+		cout << "Goes on default settins for DB access\n";
 	}
 	char *ip = argv[1];
-	cout << "ip is: \n" << ip << endl;
 	DBSessionManager manager(1000, 30);
 	if (manager.vprobing.open_dev()) {
 		return -1;
 	}
-	manager.db_connector.set_IP(string(ip));
+	if (argc == 2) {
+		manager.db_connector.set_IP(string(ip));
+		cout << "Set ip for DB access:: \n" << ip << endl;
+	}
 	manager.vprobing.dispatch_packet();
 	manager.vprobing.print_buckets();
 
