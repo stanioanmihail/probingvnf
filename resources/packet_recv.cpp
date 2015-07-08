@@ -138,6 +138,19 @@ class SessionAggregator {
 			}
 			return s;
 		}
+		bool discard_session(Session s) {
+			string ip = string(s.get_string_src_ip());
+			string str(ip, 0, 3);
+
+			cout << ip << endl;
+			if (ip == "255.255.255.255")
+				return true;
+			if (s.get_port_dst() == 53  || s.get_port_src() == 53)
+				return true;
+			if (str == "224")
+				return true;
+			return false;
+		}
 		/**
 		 * Receive info about session, classify it.
 		 * If existent, increase packet no. with existing one.
@@ -359,10 +372,10 @@ class PacketProcess {
 		    this->len -= sizeof(struct iphdr);
 		    this->len -= sizeof(struct my_tcp);
 
-		    if (ntohs(tcp->th_dport) == 443 | ntohs(tcp->th_dport == 80)) {
+		    if (ntohs(tcp->th_dport) == 80 | ntohs(tcp->th_sport == 80)) {
 			s.set_t_service(HTTP);
 		    }
-		    if (ntohs(tcp->th_dport) == 443){
+		    if (ntohs(tcp->th_dport) == 443 | ntohs(tcp->th_sport) == 443){
 			    s.set_t_service(HTTP);
 			    //printf("PORT SRC: %d\n and PORT DTS: %d\n",  ntohs(tcp->th_sport),  ntohs(tcp->th_dport));
 			    // TODO get_domain_name(args, pkthdr, packet);
@@ -370,6 +383,7 @@ class PacketProcess {
 				(ntohs(tcp->th_dport) > 6881 && ntohs(tcp->th_dport) < 6887) )
 		    {
 			s.set_t_service(TORRENT);
+			cout << "FOUND TORRENT\n";
 		    } else {
 			    s.set_t_service(DEFAULT);
 		    }
@@ -493,10 +507,12 @@ class DevProbing {
 		{
 			PacketProcess process_pack;
 			if (!process_pack.process_packet(args, pkthdr, packet)) { /* only on success */
-				process_pack.print_payload(packet, process_pack.get_session());
-				if (process_pack.get_session().get_port_dst() == 53)
-					return;
-				s_aggr.classify_session(process_pack.get_session());
+
+				/* print payload for non-discarded and classify*/
+				if (!s_aggr.discard_session(process_pack.get_session())) {
+					process_pack.print_payload(packet, process_pack.get_session());
+					s_aggr.classify_session(process_pack.get_session());
+				}
 			}
 		}
 		/* *
@@ -531,10 +547,16 @@ class DBConnector {
 			this->user = user;
 			this->pass = pass;
 		}
+		void set_IP(string ip) {
+			this->IP = ip;
+		}
+		string get_IP(string ip) {
+			return IP;
+		}
 		~DBConnector() {}
 
 		void open_database() {
-			cout << "Open db\n";
+			cout << "Open db with IP " << IP << endl;
 			string connect_info = "dbname=vpersonna host=" + IP + " user=" + user + " password=" + pass;
 			cout << "COnnect info: " << connect_info << "\n";
 			conn = PQconnectdb(connect_info.c_str());
@@ -666,12 +688,20 @@ DevProbing DBSessionManager::vprobing;
 DBConnector DBSessionManager::db_connector;
 
 
-int main() {
+int main(int argc, char *argv[]) {
 	cout << "Found time: " << PacketProcess::total_ms << endl;
 
+	if (argc < 2) {
+		cout << "Number of arguments min 2\n";
+		return 0;
+	}
+	char *ip = argv[1];
+	cout << "ip is: \n" << ip << endl;
 	DBSessionManager manager(1000, 30);
-	if (manager.vprobing.open_dev())
+	if (manager.vprobing.open_dev()) {
 		return -1;
+	}
+	manager.db_connector.set_IP(string(ip));
 	manager.vprobing.dispatch_packet();
 	manager.vprobing.print_buckets();
 
